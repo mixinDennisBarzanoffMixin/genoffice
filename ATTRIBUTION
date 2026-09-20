@@ -1,0 +1,15 @@
+Veritly's document and presentation editors are based on GenOffice,
+originally developed by Mainfunc, Inc. (https://genspark.ai/).
+
+The original source code is available at:
+https://github.com/genspark-ai/genoffice
+
+GenOffice is licensed under the Apache License, Version 2.0. See the
+LICENSE file for the full license text and NOTICE for the attribution
+notices Apache-2.0 section 4(d) requires to be carried forward.
+
+This checkout is a fork tracking the `veritly` branch of
+https://github.com/mixinDennisBarzanoffMixin/genoffice. It differs from
+upstream in one respect: the `ee/` directory, which upstream distributes
+under the separate GenOffice Enterprise License, has been removed so that
+everything vendored here is Apache-2.0.
