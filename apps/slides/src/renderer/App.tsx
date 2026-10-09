@@ -86,7 +86,14 @@ import { AnimationPane } from './components/AnimationPane'
 import { AnimPreviewOverlay } from './components/AnimatedSlide'
 import { EquationDialog, HeaderFooterDialog, LinkDialog } from './components/InsertDialogs'
 import { CutoutDialog } from './components/CutoutDialog'
-import { useAutoSavePref, type AiScopeQuoteData, type WordArtPreset } from '@genoffice/ui'
+import {
+  hostAi,
+  useAutoSavePref,
+  useHostAgent,
+  type AiScopeQuoteData,
+  type WordArtPreset,
+} from '@genoffice/ui'
+import { createSlidesSkill, type DeckAccess } from './ai/slides-skill'
 import type { ChartPresetDef, IconDef, SmartArtDef } from './insert-presets'
 import { GensparkMark, IconAiBeautify, IconAiFactCheck, IconAiImage } from './components/icons'
 import { ToastHost } from './components/toast'
@@ -125,6 +132,25 @@ import { handleGlobalKeydown } from './keyboard-actions'
 import { buildCtxItems } from './context-menu-items'
 
 const _IS_MAC = navigator.platform.toLowerCase().includes('mac')
+
+/**
+ * Tools dropped from the host's assistant (see `useHostAgent` below): these
+ * reach GenOffice's own model/cloud services (search, image generation and
+ * analysis, the self-driven deck pipeline) or app-only UI (a clarification
+ * card) that an embedding host has no equivalent for — the host runs its own
+ * assistant and owns deck generation itself.
+ */
+const HOST_EXCLUDED = new Set([
+  'web_search',
+  'image_search',
+  'generate_image',
+  'analyze_media',
+  'insert_web_image',
+  'plan_deck',
+  'generate_deck',
+  'regenerate_slide',
+  'ask_clarification',
+])
 
 /** Effects the canvas can play as a one-shot click preview; 'random' resolves to one of these */
 const PREVIEWABLE_TRANSITIONS: TransitionKind[] = [
@@ -615,7 +641,7 @@ export function App() {
       const viewportW =
         el?.clientWidth ||
         stageViewportSize.w ||
-        window.innerWidth - (showThumbs ? thumbsW : 0) - (showAi ? 360 : 34)
+        window.innerWidth - (showThumbs ? thumbsW : 0) - (hostAi() ? 0 : showAi ? 360 : 34)
       const viewportH = el?.clientHeight || stageViewportSize.h || window.innerHeight - 150
       const availW = viewportW - 56
       // -72: vertical padding is 48 (AI-bar headroom) + 32, minus the same 8px slack as width
@@ -1207,6 +1233,10 @@ export function App() {
       slideShot?: boolean,
       scope?: AiScopeQuoteData,
     ) => {
+      // embedded: the host's assistant takes the prompt; attachments, the
+      // slide shot and the scope quote are panel-only and dropped
+      const host = hostAi()
+      if (host) return host(text)
       setShowAi(() => {
         localStorage.setItem('ai-slides-show-ai', '1')
         return true
@@ -1457,6 +1487,37 @@ export function App() {
     notesDraftRef.current = null
     setAnnotationsNonce((n) => n + 1)
   }, [])
+
+  // embedded: the host's assistant drives the deck through the panel's own tools.
+  // AiPanel itself never mounts under a host (gated on !hostAi() below), so this
+  // is a second, independent registration built from the same top-level state —
+  // trimmed to what the kept tools need; the excluded ones needed AiPanel's own
+  // attachment/media-provider access, which has no host equivalent.
+  useHostAgent(
+    createSlidesSkill({
+      getSlides: () => slides,
+      getCurrent: () => current,
+      getSelectedIds: () => selectedIds,
+      applySlide,
+      applyDeck,
+      fitWidthPx: FIT_WIDTH,
+      saveStyleTemplate: async (name, data) => {
+        try {
+          return await window.slidesApi.saveStyleTemplate(name, data)
+        } catch {
+          return { ok: false, error: String('') }
+        }
+      },
+      listStyleTemplates: async () => {
+        try {
+          return await window.slidesApi.listStyleTemplates()
+        } catch {
+          return []
+        }
+      },
+    } satisfies DeckAccess),
+    HOST_EXCLUDED,
+  )
 
   const addSlide = useCallback(() => slideActions.addSlide(ctxRef.current), [])
   const addSlideWithLayout = useCallback(
@@ -2922,14 +2983,10 @@ export function App() {
         editing={!!editing || !!editingCell}
         autoSave={autoSave}
         onAutoSaveChange={setAutoSave}
-        onOpen={() => void openDialog()}
         onSave={() => void save()}
         onUndo={() => void undo()}
         onRedo={() => void redo()}
         onSaveAs={() => void saveAs()}
-        onExportPdf={() => void exportPdf()}
-        onPrint={() => setPrintDlgOpen(true)}
-        onExportImages={() => void exportImages()}
         onFormat={onFormat}
         zoom={zoom}
         onZoom={previewZoom}
@@ -3241,7 +3298,8 @@ export function App() {
       />
 
       <div className="app-main">
-        {slide && viewMode !== 'reading' && viewMode !== 'sorter' && (
+        {/* embedded: the host's assistant replaces the AI panel and its collapsed rail */}
+        {slide && viewMode !== 'reading' && viewMode !== 'sorter' && !hostAi() && (
           <div className={`ai-dock${showAi && aiSettings ? '' : ' collapsed'}`}>
             {/* always mounted once settings load: collapse must not drop state or in-flight runs */}
             {aiSettings ? (
@@ -3618,57 +3676,64 @@ export function App() {
                             : undefined
                         }
                       >
-                        <div className="stage-ai-bar">
-                          <div className="stage-ai-group">
-                            <button
-                              className={`stage-ai-btn${showAi ? ' active' : ''}`}
-                              data-tip={t('aiOpenAssistant')}
-                              onClick={toggleAi}
-                            >
-                              <GensparkMark size={14} />
-                              <span>Genspark AI</span>
-                            </button>
-                            {/* Same one-click presets as the Home tab; hidden instead of
-                        disabled while the deck has no real content */}
-                            {!deckEmpty && (
-                              <>
-                                <span className="stage-ai-divider" aria-hidden="true" />
+                        {/* embedded: no panel toggle, so an empty deck leaves nothing to show */}
+                        {(!hostAi() || !deckEmpty) && (
+                          <div className="stage-ai-bar">
+                            <div className="stage-ai-group">
+                              {!hostAi() && (
                                 <button
-                                  className="stage-ai-btn"
-                                  data-tip={t('aiBeautifyBtn')}
-                                  onClick={() =>
-                                    pushAiPreset(
-                                      t('aiBeautifyPrompt'),
-                                      true,
-                                      undefined,
-                                      undefined,
-                                      true,
-                                    )
-                                  }
+                                  className={`stage-ai-btn${showAi ? ' active' : ''}`}
+                                  data-tip={t('aiOpenAssistant')}
+                                  onClick={toggleAi}
                                 >
-                                  <IconAiBeautify size={14} />
-                                  <span>{t('aiBeautifyBtn')}</span>
+                                  <GensparkMark size={14} />
+                                  <span>Genspark AI</span>
                                 </button>
-                                <button
-                                  className="stage-ai-btn"
-                                  data-tip={t('aiFactCheckBtn')}
-                                  onClick={() => pushAiPreset(t('aiFactCheckPrompt'))}
-                                >
-                                  <IconAiFactCheck size={14} />
-                                  <span>{t('aiFactCheckBtn')}</span>
-                                </button>
-                                <button
-                                  className="stage-ai-btn"
-                                  data-tip={t('aiImageBtn')}
-                                  onClick={() => pushAiPreset(t('aiImagePrompt'))}
-                                >
-                                  <IconAiImage size={14} />
-                                  <span>{t('aiImageBtn')}</span>
-                                </button>
-                              </>
-                            )}
+                              )}
+                              {/* Same one-click presets as the Home tab; hidden instead of
+                          disabled while the deck has no real content */}
+                              {!deckEmpty && (
+                                <>
+                                  {!hostAi() && (
+                                    <span className="stage-ai-divider" aria-hidden="true" />
+                                  )}
+                                  <button
+                                    className="stage-ai-btn"
+                                    data-tip={t('aiBeautifyBtn')}
+                                    onClick={() =>
+                                      pushAiPreset(
+                                        t('aiBeautifyPrompt'),
+                                        true,
+                                        undefined,
+                                        undefined,
+                                        true,
+                                      )
+                                    }
+                                  >
+                                    <IconAiBeautify size={14} />
+                                    <span>{t('aiBeautifyBtn')}</span>
+                                  </button>
+                                  <button
+                                    className="stage-ai-btn"
+                                    data-tip={t('aiFactCheckBtn')}
+                                    onClick={() => pushAiPreset(t('aiFactCheckPrompt'))}
+                                  >
+                                    <IconAiFactCheck size={14} />
+                                    <span>{t('aiFactCheckBtn')}</span>
+                                  </button>
+                                  <button
+                                    className="stage-ai-btn"
+                                    data-tip={t('aiImageBtn')}
+                                    onClick={() => pushAiPreset(t('aiImagePrompt'))}
+                                  >
+                                    <IconAiImage size={14} />
+                                    <span>{t('aiImageBtn')}</span>
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </div>
-                        </div>
+                        )}
                         <div
                           ref={stageScaleRef}
                           className="stage-scale"
@@ -4244,6 +4309,7 @@ export function App() {
           targets={askTargets}
           getAnchorRect={getAskAnchorRect}
           queueFull={editQueue.length >= EDIT_QUEUE_MAX}
+          sendOnly={!!hostAi()}
           onSubmit={(instruction) => {
             askClosedAtRef.current = Date.now()
             commitAsk(instruction)

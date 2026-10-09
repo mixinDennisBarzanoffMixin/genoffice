@@ -50,7 +50,20 @@ export {
   type RibbonCollapse,
   type RibbonCollapseLabels,
 } from './ribbon-collapse'
+export { useRibbonFold, RibbonFoldTrigger, RibbonFoldPanel, type RibbonFold } from './ribbon-fold'
 export { AiTypingIndicator } from './AiTypingIndicator'
+export {
+  hostAi,
+  setHostAi,
+  setHostAgent,
+  whenHostAgent,
+  useHostAgent,
+  type HostAi,
+  type HostAgent,
+  type HostTool,
+  type HostToolResult,
+  type HostSkill,
+} from './host-ai'
 export { IconSend, IconStop, type IconProps } from './icons'
 export { Markdown, type MarkdownNav } from './Markdown'
 export { isSymbolFontFamily } from './symbol-fonts'

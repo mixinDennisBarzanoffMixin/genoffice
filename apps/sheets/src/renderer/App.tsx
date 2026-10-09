@@ -59,7 +59,7 @@ import {
 import { isNumericIdentifierText } from './cell-warning'
 import { consumePendingUndoCarry, undoStackDepth } from './undo-carry'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { useAutoSavePref, type AiScopeQuoteData } from '@genoffice/ui'
+import { useAutoSavePref, useHostAgent, type AiScopeQuoteData } from '@genoffice/ui'
 
 import {
   CellValueType,
@@ -433,6 +433,13 @@ let pendingCopySource: string | undefined
 /// every streamed chunk), and numfmt's date/time parser is slow on long
 /// strings, so classify each distinct string once. No date, time or number
 /// literal is longer than 64 characters.
+/**
+ * Tools dropped from the host's assistant (see `useHostAgent` below):
+ * create_document opens a new, separate file outside the host's own document
+ * catalog and tab lifecycle — an embedding host owns file creation itself.
+ */
+const HOST_EXCLUDED = new Set(['create_document'])
+
 const dateTextKinds = new Map<string, 'date-like' | 'text'>()
 function dateTextKind(value: string): 'date-like' | 'text' {
   if (value.length > 64) return 'text'
@@ -1478,6 +1485,9 @@ export function App(): React.JSX.Element {
       createDocument: (request) => createAiDocument({ univerRef, lazyWorkbookRef }, request),
     }
   }
+
+  // embedded: the host's assistant drives the workbook through the panel's own tools
+  useHostAgent(createWorkbookSkill(sheetsSkillDeps()), HOST_EXCLUDED)
 
   useEffect(() => {
     void window.desktopApi.getAiSettings().then(setAiSettingsState)
