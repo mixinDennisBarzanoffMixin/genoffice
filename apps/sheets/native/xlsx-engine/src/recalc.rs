@@ -477,6 +477,146 @@ mod tests {
             .clone()
     }
 
+    fn variant(changes: &[(&str, &str)]) -> Vec<u8> {
+        use std::io::{Cursor, Write};
+        let bytes = include_bytes!("../../../tests/fixtures/representative.xlsx");
+        let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
+        let mut output = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        for index in 0..archive.len() {
+            let entry = archive.by_index(index).unwrap();
+            if let Some((_, body)) = changes.iter().find(|(name, _)| *name == entry.name()) {
+                output.start_file(entry.name(), zip::write::SimpleFileOptions::default()).unwrap();
+                output.write_all(body.as_bytes()).unwrap();
+            } else {
+                output.raw_copy_file(entry).unwrap();
+            }
+        }
+        for (name, body) in changes {
+            if archive.by_name(name).is_err() {
+                output.start_file(*name, zip::write::SimpleFileOptions::default()).unwrap();
+                output.write_all(body.as_bytes()).unwrap();
+            }
+        }
+        output.finish().unwrap().into_inner()
+    }
+
+    fn original(name: &str) -> String {
+        use std::io::{Cursor, Read};
+        let mut archive = zip::ZipArchive::new(Cursor::new(include_bytes!("../../../tests/fixtures/representative.xlsx"))).unwrap();
+        let mut body = String::new();
+        archive.by_name(name).unwrap().read_to_string(&mut body).unwrap();
+        body
+    }
+
+    fn without(xml: &str, name: &str) -> String {
+        let doc = roxmltree::Document::parse(xml).unwrap();
+        let node = doc.descendants().find(|node| node.has_tag_name(name)).unwrap();
+        let mut body = xml.to_string();
+        body.replace_range(node.range(), "");
+        body
+    }
+
+    fn prefixed(xml: &str) -> String {
+        let mut body = xml.replace("xmlns=", "xmlns:x=");
+        let positions: Vec<_> = body.match_indices('<').filter_map(|(at, _)| {
+            let at = at + 1;
+            let at = if body.as_bytes().get(at) == Some(&b'/') { at + 1 } else { at };
+            body.as_bytes().get(at).is_some_and(u8::is_ascii_alphabetic).then_some(at)
+        }).collect();
+        for at in positions.into_iter().rev() { body.insert_str(at, "x:"); }
+        body
+    }
+
+    #[test]
+    fn importer_filters_non_elements_without_phantom_style_indices() {
+        let styles = r#"<?xml version="1.0"?><?probe value?><!-- leading -->
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<numFmts count="1"> <!-- format --> <numFmt numFmtId="164" formatCode="0.00"/> </numFmts>
+<fonts count="2"> <!-- first --> <font><name val="Plain"/><vertAlign val="superscript"/></font> <?probe value?> <font><name val="Target"/></font> </fonts>
+<fills count="2"> <fill><patternFill patternType="none"/></fill> <!-- second --> <fill><patternFill patternType="solid"/></fill> </fills>
+<borders count="1"> <!-- border --> <border/> </borders>
+<cellStyleXfs count="2"> <xf/> <!-- second --> <xf fontId="1"/> </cellStyleXfs>
+<cellXfs count="2"> <xf fontId="1" fillId="1" numFmtId="164" xfId="1"/> <!-- absent --> <xf/> </cellXfs>
+</styleSheet>"#;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("styles.xlsx");
+        std::fs::write(&path, variant(&[("xl/styles.xml", styles)])).unwrap();
+        let mut model = load_from_xlsx(path.to_str().unwrap(), "en", "UTC", "en").unwrap();
+        assert_eq!(model.workbook.styles.fonts.len(), 2);
+        assert_eq!(model.workbook.styles.fonts[1].name, "Target");
+        assert_eq!(model.workbook.styles.fills.len(), 2);
+        assert_eq!(model.workbook.styles.borders.len(), 1);
+        assert_eq!(model.workbook.styles.num_fmts.len(), 1);
+        assert_eq!(model.workbook.styles.num_fmts[0].num_fmt_id, 164);
+        assert_eq!(model.workbook.styles.cell_xfs.len(), 2);
+        assert_eq!(model.workbook.styles.cell_xfs[0].xf_id, 1);
+        assert_eq!(model.workbook.styles.cell_xfs[1].xf_id, 0);
+        assert!(model.workbook.styles.cell_styles.is_empty());
+        assert_eq!(model.get_formatted_cell_value(0, 1, 1).unwrap(), "1.00");
+        for value in ["10%", "1/2/2026"] {
+            model.set_user_input(0, 1, 1, value.into()).unwrap();
+            model.evaluate();
+            assert_ne!(model.get_formatted_cell_value(0, 1, 1).unwrap(), "#ERROR!");
+        }
+    }
+
+    #[test]
+    fn importer_preserves_shared_and_inline_text_whitespace_and_prefixed_namespaces() {
+        let sheet = r#"<?xml version="1.0"?><!-- leading --><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>
+<row r="1"> <!-- cell --> <c r="A1" t="s"><v>0</v></c> <c r="B1" t="inlineStr"><is><t xml:space="preserve">  inline text  </t></is></c></row>
+</sheetData></worksheet>"#;
+        let strings = r#"<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><si><t xml:space="preserve">  shared text  </t></si></sst>"#;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("text.xlsx");
+        for prefix in [false, true] {
+            let styles = original("xl/styles.xml");
+            let (styles, sheet) = if prefix { (prefixed(&styles), prefixed(sheet)) } else { (styles, sheet.to_string()) };
+            std::fs::write(&path, variant(&[("xl/styles.xml", &styles), ("xl/worksheets/sheet1.xml", &sheet), ("xl/sharedStrings.xml", strings)])).unwrap();
+            let model = load_from_xlsx(path.to_str().unwrap(), "en", "UTC", "en").unwrap();
+            assert_eq!(model.get_formatted_cell_value(0, 1, 1).unwrap(), "  shared text  ");
+            assert_eq!(model.get_formatted_cell_value(0, 1, 2).unwrap(), "  inline text  ");
+        }
+    }
+
+    #[test]
+    fn importer_missing_required_collections_and_invalid_xf_ids_are_typed_errors() {
+        use ironcalc::error::XlsxError;
+        let styles = original("xl/styles.xml");
+        let sheet = original("xl/worksheets/sheet1.xml");
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("missing.xlsx");
+        for name in ["fonts", "fills", "borders", "cellStyleXfs", "cellXfs", "sheetData"] {
+            let (entry, body) = if name == "sheetData" { ("xl/worksheets/sheet1.xml", without(&sheet, name)) } else { ("xl/styles.xml", without(&styles, name)) };
+            std::fs::write(&path, variant(&[(entry, &body)])).unwrap();
+            assert!(matches!(load_from_xlsx(path.to_str().unwrap(), "en", "UTC", "en"), Err(XlsxError::Xml(_))));
+        }
+        for replacement in ["<cellStyleXfs count=\"0\"/>", "<cellStyleXfs count=\"1\"><xf/></cellStyleXfs>"] {
+            let doc = roxmltree::Document::parse(&styles).unwrap();
+            let range = doc.descendants().find(|node| node.has_tag_name("cellStyleXfs")).unwrap().range();
+            let mut body = styles.clone();body.replace_range(range, replacement);
+            if replacement.contains("count=\"1\"") { body = body.replace("<cellXfs count=\"1\"><xf/>", "<cellXfs count=\"1\"><xf xfId=\"2\"/>"); }
+            std::fs::write(&path, variant(&[("xl/styles.xml", &body)])).unwrap();
+            assert!(matches!(load_from_xlsx(path.to_str().unwrap(), "en", "UTC", "en"), Err(XlsxError::Xml(_))));
+        }
+    }
+
+    #[test]
+    fn imports_original_pretty_printed_representative_without_rewriting_it() {
+        let bytes = include_bytes!("../../../tests/fixtures/representative.xlsx");
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("representative.xlsx");
+        std::fs::write(&path, bytes).unwrap();
+        let mut cache = RecalcCache::new();
+        let result = recalc_cells(&mut cache, &path, &[RecalcEdit {
+            sheet: "Data".into(), row: 0, column: 0, input: "8".into(),
+        }], &[RecalcRead {
+            sheet: "Data".into(), range: CellRange { start_row: 1, end_row: 1, start_column: 3, end_column: 3 },
+        }]).unwrap();
+        assert_eq!(result.cells.len(), 1);
+        assert_eq!(result.cells[0].value, Some(RecalcValue::Number(10.0)));
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+    }
+
     #[test]
     fn raw_tags_preserve_text_boolean_empty_and_errors_without_dropping_coordinates() {
         let mut pending = Model::new_empty("pending", "en", "UTC", "en").unwrap();
