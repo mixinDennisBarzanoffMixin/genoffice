@@ -10,3 +10,17 @@ export function configuration(name: string, options: unknown, readonly: boolean)
     initialFormulaComputing: 2,
   }
 }
+
+/** The connected toolbar dispatches only existing session-local view actions. */
+export function viewing(command: string): boolean {
+  if (['find', 'zoom-in', 'zoom-out', 'zoom-reset', 'zoom-to-selection'].includes(command)) return true
+  if (!/^zoom:\d{2,3}$/.test(command)) return false
+  const percent = Number(command.slice(5))
+  return percent >= 50 && percent <= 400
+}
+
+/** Navigation operations plus the existing facade commands for zoom and Go To. */
+export function navigation(id: string, operation: boolean): boolean {
+  if (id === 'ui.operation.open-replace-dialog') return false
+  return operation || ['sheet.command.set-zoom-ratio', 'sheet.command.scroll-to-cell'].includes(id)
+}

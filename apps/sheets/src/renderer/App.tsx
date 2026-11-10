@@ -110,6 +110,7 @@ import UniverPresetSheetsTableEnUS from '@univerjs/preset-sheets-table/locales/e
 import '@univerjs/preset-sheets-table/lib/index.css'
 import { greenTheme } from '@univerjs/themes'
 import { createUniver } from './create-univer'
+import { navigation, viewing } from './readonly'
 
 import {
   AgentLoop,
@@ -1566,9 +1567,9 @@ export function App({ readonly = false }: { readonly?: boolean } = {}): React.JS
     univerRef.current = runtime
     if (readonly) {
       const commands = runtime.univer.__getInjector().get(ICommandService)
-      runtime.univerAPI.onBeforeCommandExecute((command) => {
+      commands.beforeCommandExecuted((command) => {
         if (!immutable.current || journalSuppression.active) return
-        if (commands.getCommand(command.id)?.[0].type !== CommandType.OPERATION)
+        if (!navigation(command.id, command.type === CommandType.OPERATION))
           throw new Error('Connected workbook is read-only')
       })
     }
@@ -3512,7 +3513,7 @@ export function App({ readonly = false }: { readonly?: boolean } = {}): React.JS
   }, [])
 
   function handleRibbonCommand(command: string): void {
-    if (readonly) return
+    if (readonly && !viewing(command)) return
     if (command === 'watch-window') {
       setWatchOpen((open) => !open)
       return

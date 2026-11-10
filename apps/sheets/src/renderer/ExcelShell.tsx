@@ -429,6 +429,13 @@ export function ExcelShell({
     const canEditSheet = (event: KeyboardEvent): boolean =>
       !onIsCellEditingRef.current() && isGridKeyTarget(event.target)
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (readonly) {
+        if ((event.metaKey || event.ctrlKey) && event.key === 'g') {
+          event.preventDefault()
+          setShowGoTo(true)
+        }
+        return
+      }
       if ((event.metaKey || event.ctrlKey) && event.key === '1') {
         event.preventDefault()
         setShowFormatCells(true)
@@ -500,6 +507,7 @@ export function ExcelShell({
   // mounted once: re-binding after Univer starts would lose capture order.
   useEffect(() => {
     const onKeyDownCapture = (event: KeyboardEvent): void => {
+      if (readonly) return
       if (!shouldInterceptClearSelection(event, onIsCellEditingRef.current())) return
       event.preventDefault()
       event.stopImmediatePropagation()
@@ -559,6 +567,20 @@ export function ExcelShell({
 
   return (
     <main className={`app-shell ${readonly ? 'readonly' : ''} ${isCopilotOpen ? '' : 'copilot-collapsed'}`}>
+      {readonly && <div className="readonly-toolbar" role="toolbar" aria-label={t('appTabView')}>
+        <strong>{t('appTabView')}</strong>
+        <button type="button" onClick={() => onCommand('find')}>{t('appFind')}</button>
+        <button type="button" onClick={() => setShowGoTo(true)}>{t('appGoTo')}</button>
+        <label>
+          {t('appZoomLabel')}
+          <select aria-label={t('appZoomLabel')} value={zoomPercent} onChange={(event) => onCommand(`zoom:${event.target.value}`)}>
+            {[...new Set([50, 75, 100, 125, 150, 200, 400, zoomPercent])].sort((a, b) => a - b).map((percent) =>
+              <option key={percent} value={percent}>{percent}%</option>)}
+          </select>
+        </label>
+        <button type="button" title={t('appResetZoom')} onClick={() => onCommand('zoom-reset')}>100%</button>
+        <button type="button" onClick={() => onCommand('zoom-to-selection')}>{t('appZoomToSelection')}</button>
+      </div>}
       {!readonly && <header className={`excel-header ${collapse.rootClass}`} ref={collapse.rootRef}>
         <nav
           className={`ribbon-tabs ${IN_TAB ? '' : IS_MAC ? 'ribbon-tabs-mac' : 'ribbon-tabs-win'}`}
