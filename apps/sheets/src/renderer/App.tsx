@@ -1794,7 +1794,7 @@ export function App({ readonly = false }: { readonly?: boolean } = {}): React.JS
         // The event carries the true post-scroll position; getVisibleRange
         // inside loadVisibleRange lags a frame.
         const eventStart = params as { sheetViewStartRow?: number; sheetViewStartColumn?: number }
-        const visible = loadVisibleRange(
+        void loadVisibleRange(
           runtime,
           lazyWorkbookRef,
           worksheet,
@@ -3983,7 +3983,7 @@ export function App({ readonly = false }: { readonly?: boolean } = {}): React.JS
         }
         // getVisibleRange lags the jump by a frame (same as name-box goto) —
         // anchor the first stream at the restored cell, not the stale origin.
-        void loadVisibleRange(
+        const loading = loadVisibleRange(
           runtime,
           lazyWorkbookRef,
           restoredSheet ?? worksheet,
@@ -3993,7 +3993,7 @@ export function App({ readonly = false }: { readonly?: boolean } = {}): React.JS
             : undefined,
         )
         if (readonly) {
-          void visible.then(() => {
+          void loading.then(() => {
             workbook.setEditable(false)
             immutable.current = true
             window.dispatchEvent(new Event('genoffice:readonly-ready'))
@@ -4245,11 +4245,12 @@ export function App({ readonly = false }: { readonly?: boolean } = {}): React.JS
     queueChartDataSyncImpl(visualSyncContext(), sheetId, bounds)
   }
 
-  chartEditRef.current = (editKey, edit) => applyChartEditImpl(visualSyncContext(), editKey, edit)
+  chartEditRef.current = (editKey, edit) => { if (!readonly) applyChartEditImpl(visualSyncContext(), editKey, edit) }
   chartVectorRef.current = (editKey, rangeText) =>
     readChartVectorImpl(visualSyncContext(), editKey, rangeText)
-  shapeEditRef.current = (visualId, changes) =>
-    applyShapeEditImpl(visualSyncContext(), visualId, changes)
+  shapeEditRef.current = (visualId, changes) => {
+    if (!readonly) applyShapeEditImpl(visualSyncContext(), visualId, changes)
+  }
 
   // Ribbon echo of the selected chart; a live lookup so deletion, file
   // switches, and pending type edits reflect without extra bookkeeping.

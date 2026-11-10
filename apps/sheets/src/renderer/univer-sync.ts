@@ -7282,7 +7282,7 @@ export function queueVisualInstall(
       runtime,
       file,
       sheetId,
-      chartEditRef
+      chartEditRef && !state.file.readOnly
         ? {
             edits: state.editJournal.chartEdits,
             onEdit: (chartPath, edit) => chartEditRef.current(chartPath, edit),
@@ -7291,7 +7291,7 @@ export function queueVisualInstall(
               : {}),
           }
         : undefined,
-      shapeEditRef
+      shapeEditRef && !state.file.readOnly
         ? { onEdit: (visualId, changes) => shapeEditRef.current(visualId, changes) }
         : undefined,
     )
