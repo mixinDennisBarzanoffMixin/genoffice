@@ -558,7 +558,7 @@ export function ExcelShell({
   const saveAsTitle = `${t('appSaveAs')} (${platformShortcuts('⇧⌘S')})`
 
   return (
-    <main className={`app-shell ${isCopilotOpen ? '' : 'copilot-collapsed'}`}>
+    <main className={`app-shell ${readonly ? 'readonly' : ''} ${isCopilotOpen ? '' : 'copilot-collapsed'}`}>
       {!readonly && <header className={`excel-header ${collapse.rootClass}`} ref={collapse.rootRef}>
         <nav
           className={`ribbon-tabs ${IN_TAB ? '' : IS_MAC ? 'ribbon-tabs-mac' : 'ribbon-tabs-win'}`}

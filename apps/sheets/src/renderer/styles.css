@@ -5585,3 +5585,7 @@ textarea:focus {
 .menu-select-drop .menu-option-icon:hover {
   background: transparent;
 }
+
+/* A connected view has neither the editing header nor an AI dock column. */
+.app-shell.readonly { grid-template-rows: minmax(0, 1fr); }
+.app-shell.readonly .sheet-body { grid-template-columns: minmax(0, 1fr); transition: none; }
