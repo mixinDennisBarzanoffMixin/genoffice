@@ -2786,7 +2786,56 @@ export function nextIndexWaitStall(
   return next >= INDEX_WAIT_STALL_LIMIT ? null : next
 }
 
+const pending = new WeakMap<LazyWorkbookState, Map<string, Promise<void>>>()
+
 async function loadRange(
+  runtime: UniverRuntime,
+  lazyWorkbookRef: { current: LazyWorkbookState | null },
+  worksheet: UniverWorksheet,
+  range: IRange,
+  setMessage: (message: string) => void,
+  isRetry = false,
+  waitForRequestedRange = false,
+  waitStalls = 0,
+  lastIndexedRow: number | null = null,
+  bulk = false,
+  deadline?: number,
+): Promise<void> {
+  const state = lazyWorkbookRef.current
+  if (!state) return
+  const sheet = worksheet.getSheetId()
+  let tasks = pending.get(state)
+  if (!tasks) { tasks = new Map(); pending.set(state, tasks) }
+  const previous = tasks.get(sheet)
+  const wait = async (task: Promise<void>) => {
+    if (deadline === undefined) return task
+    const remaining = deadline - performance.now()
+    if (remaining <= 0) throw new Error('Initial workbook range timed out')
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      await Promise.race([task, new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Initial workbook range timed out')), remaining)
+      })])
+    } finally { if (timer !== undefined) clearTimeout(timer) }
+    if (lazyWorkbookRef.current !== state) throw new Error('Workbook load was replaced')
+  }
+  try {
+    if (previous) {
+      await wait(previous)
+      return loadRange(runtime, lazyWorkbookRef, worksheet, range, setMessage,
+        isRetry, waitForRequestedRange, waitStalls, lastIndexedRow, bulk, deadline)
+    }
+    const task = stream(runtime, lazyWorkbookRef, worksheet, range, setMessage,
+      isRetry, waitForRequestedRange, waitStalls, lastIndexedRow, bulk, deadline)
+    tasks.set(sheet, task)
+    try { await wait(task) }
+    finally { if (tasks.get(sheet) === task) tasks.delete(sheet) }
+  } catch (error) {
+    if (deadline !== undefined) throw error
+  }
+}
+
+async function stream(
   runtime: UniverRuntime,
   lazyWorkbookRef: { current: LazyWorkbookState | null },
   worksheet: UniverWorksheet,
@@ -3058,7 +3107,7 @@ async function loadRange(
         await new Promise((resolve) => setTimeout(resolve, 250))
         if (lazyWorkbookRef.current !== state) throw new Error('Workbook load was replaced')
         state.loadingKeys.delete(sheetId)
-        await loadRange(runtime, lazyWorkbookRef, worksheet, range, setMessage, true, true, 0, null, bulk, deadline)
+        await stream(runtime, lazyWorkbookRef, worksheet, range, setMessage, true, true, 0, null, bulk, deadline)
         return
       }
       const nextStalls =
@@ -3069,7 +3118,7 @@ async function loadRange(
         await new Promise((resolve) => setTimeout(resolve, 250))
         if (lazyWorkbookRef.current === state) {
           state.loadingKeys.delete(sheetId)
-          await loadRange(
+          await stream(
             runtime,
             lazyWorkbookRef,
             worksheet,
@@ -3104,7 +3153,7 @@ async function loadRange(
     if (lazyWorkbookRef.current === state && isActiveSheet(runtime, sheetId)) {
       setMessage(error instanceof Error ? error.message : t('appLoadRangeFailed'))
     }
-    if (deadline !== undefined) throw error
+    throw error
   } finally {
     if (state.loadingKeys.get(sheetId) === requestKey) {
       state.loadingKeys.delete(sheetId)

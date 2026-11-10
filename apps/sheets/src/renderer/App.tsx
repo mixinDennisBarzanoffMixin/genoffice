@@ -3999,7 +3999,7 @@ export function App({ readonly = false }: { readonly?: boolean } = {}): React.JS
             workbook.setEditable(false)
             immutable.current = true
             window.dispatchEvent(new Event('genoffice:readonly-ready'))
-          }).catch(() => window.dispatchEvent(new Event('genoffice:readonly-failed')))
+          }).catch((error: unknown) => window.dispatchEvent(new CustomEvent('genoffice:readonly-failed', { detail: error })))
         } else if (state.formulaMode) {
           void preloadEntireWorkbook(runtime, lazyWorkbookRef, setMessage)
         } else {
