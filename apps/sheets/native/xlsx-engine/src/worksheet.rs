@@ -149,6 +149,9 @@ pub(crate) fn index_worksheet(
                 }
             }
             Event::Start(element) if element.local_name().as_ref() == b"f" => {
+                if attribute_value(&reader, &element, b"t")?.is_some_and(|kind| kind != "normal") {
+                    state.0.lock().map_err(|_| SidecarError::Io("Worksheet index lock was poisoned.".into()))?.formula_unsupported = true;
+                }
                 in_formula = true;
                 cell_shared_si = shared_formula_si(&reader, &element)?;
                 if let Some(builder) = cell_builder.as_mut() {
@@ -156,6 +159,9 @@ pub(crate) fn index_worksheet(
                 }
             }
             Event::Empty(element) if element.local_name().as_ref() == b"f" => {
+                if attribute_value(&reader, &element, b"t")?.is_some_and(|kind| kind != "normal") {
+                    state.0.lock().map_err(|_| SidecarError::Io("Worksheet index lock was poisoned.".into()))?.formula_unsupported = true;
+                }
                 // Self-closing shared-formula follower (<f t="shared" si="N"/>):
                 // inherit the master's formula shifted by the cell offset (#165).
                 if let (Some(si), Some(builder)) =

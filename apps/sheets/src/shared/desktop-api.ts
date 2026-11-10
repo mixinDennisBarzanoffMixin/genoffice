@@ -1,3 +1,4 @@
+import { formulaCacheSchema } from './cache-status'
 import { z } from 'zod'
 
 import {
@@ -1013,6 +1014,7 @@ export const workbookFormulaCellsRequestSchema = z
 /// All formula cells of one sheet, for closure-mode analysis.
 export const workbookFormulaCellsResultSchema = z
   .object({
+    unsupported: z.boolean(),
     cells: z.array(workbookCellRecordSchema).max(100_000),
     indexingComplete: z.boolean(),
     truncated: z.boolean(),
@@ -1937,6 +1939,8 @@ export const workbookSaveRequestSchema = z
     message: 'Sheet operations need the final sheet order.',
   })
 
+
+
 export const workbookSaveResultSchema = z.union([
   z
     .object({
@@ -1952,6 +1956,7 @@ export const workbookSaveResultSchema = z.union([
       canceled: z.literal(false),
       file: workbookFileSchema,
       touchedEntries: z.array(z.string()).max(MAX_SAVE_EDITS),
+      formulaCache: formulaCacheSchema,
     })
     .strict(),
 ])

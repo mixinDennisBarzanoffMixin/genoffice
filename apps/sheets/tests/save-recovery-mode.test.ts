@@ -178,7 +178,7 @@ describe('handleSave formula cache overlay', () => {
     expect(payload.edits).toContainEqual(
       expect.objectContaining({ row: 2, column: 1, formula: '=2+2' }),
     )
-    expect(payload.formulaValues).toEqual([{ sheetId: 'sheet-1', row: 0, column: 2, value: 7 }])
+    expect(payload.formulaValues).toEqual([])
     const savedB3 = /<c r="B3"[^>]*>[\s\S]*?<\/c>/.exec(savedWorksheet)?.[0]
     expect(savedB3).toContain('<f>2+2</f>')
     expect(savedB3).not.toContain('<v>')
@@ -199,10 +199,7 @@ describe('handleSave formula cache overlay', () => {
     const payload = saveWorkbookEdits.mock.calls[0]![0] as {
       formulaValues: { row: number; column: number; value: unknown }[]
     }
-    expect(payload.formulaValues).toEqual([
-      { sheetId: 'sheet-1', row: 0, column: 1, value: '#N/A' },
-      { sheetId: 'sheet-1', row: 0, column: 2, value: 7 },
-    ])
+    expect(payload.formulaValues).toEqual([])
   })
 })
 
@@ -229,5 +226,19 @@ describe('handleSave restored-recovery write-back', () => {
     expect(writeWorkbookRecovery).toHaveBeenCalledTimes(1)
     const payload = writeWorkbookRecovery.mock.calls[0]![0] as Record<string, unknown>
     expect(payload.restoreWriteBack).toBeUndefined()
+  })
+})
+
+
+describe('partial cache save outcome', () => {
+  it('surfaces qualification even for quiet autosave', async () => {
+    const { ctx, messages } = ctxWith({ dirty: true })
+    saveWorkbookEdits.mockResolvedValueOnce({
+      canceled: false, file: { sessionId: '11111111-1111-4111-8111-111111111111', sha256: 'synthetic' },
+      touchedEntries: [], formulaCache: { kind: 'not_refreshed', reason: 'unsupported', count: 1 },
+    })
+    const result = await handleSave(ctx, 'save', true)
+    expect(result.ok).toBe(true)
+    expect(messages.some(message => message.includes('not refreshed for other readers'))).toBe(true)
   })
 })

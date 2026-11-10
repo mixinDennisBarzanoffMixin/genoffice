@@ -5,7 +5,7 @@
  * Extracted from App.tsx; the App component passes a SaveContext built fresh
  * per call so refs and state never go stale.
  */
-import type { WorkbookFile, WorkbookFilterState } from '../shared/desktop-api'
+import type { WorkbookFile, WorkbookFilterState, WorkbookSaveRequest } from '../shared/desktop-api'
 import {
   isSheetRemoved,
   toSaveChartEdits,
@@ -23,7 +23,6 @@ import {
 } from './edit-journal'
 import { activeCsvSheet, handleExportCsv, serializeActiveSheetCsv } from './csv-export'
 import type { CellState } from '@genoffice/xlsx-gateway/domain/workbook.types'
-import { verifiedFormulaValues } from './formula-values'
 import { t } from './i18n/locale'
 import { abortStagedEditsTransfer, stageEditsForSave, type StagedEdits } from './save-edits-staging'
 import { showToast } from './toast-bus'
@@ -189,28 +188,8 @@ export async function handleSave(
             ? {}
             : { fonts: state.editJournal.theme.fonts }),
         }
-  // Recalculated formula results: the engine's values are on screen but
-  // deliberately kept out of the journal (they must not become literals). Send them
-  // separately so the save refreshes each formula cell's cached <v>, keeping its <f>.
-  // A journaled formula is excluded: the overlay may still hold the previous
-  // formula's result when the user saves immediately after entering a replacement.
-  const overlayValues = [...(state.recalc?.overlay ?? [])].flatMap(([sheetId, cells]) =>
-    isSheetRemoved(state.editJournal, sheetId)
-      ? []
-      : [...cells].flatMap(([key, cell]) => {
-          // #ERROR! is IronCalc's own failure, never a value Excel would cache.
-          if (cell.v === undefined || cell.v === '#ERROR!') return []
-          if (state.editJournal.cells.get(sheetId)?.get(key)?.formula !== undefined) return []
-          const [row, column] = key.split(':').map(Number)
-          if (row === undefined || column === undefined) return []
-          const value = cell.isError && typeof cell.v === 'string' ? { error: cell.v } : cell.v
-          return [{ sheetId, row, column, value }]
-        }),
-  )
-  // Journaled formulas an MCP batch saw settle (see formula-values.ts) were left
-  // out above because the overlay could be stale; their values are read live here.
-  const journaledValues = ctx.readCells ? verifiedFormulaValues(ctx.readCells) : []
-  const formulaValues = [...overlayValues, ...journaledValues]
+  // Main computes a complete save-time inventory; viewport values are never cache authority.
+  const formulaValues: WorkbookSaveRequest['formulaValues'] = []
   // The gateway fails closed when these additions ride with structural or
   // sheet changes (their coordinates entangle). Instead of bouncing the
   // user, hold them back and save in two sequential phases: structure
@@ -455,9 +434,11 @@ export async function handleSave(
       )
       ctx.stashViewRestore(viewAtSave)
       ctx.openLazyWorkbook(result.file)
-      const saved = t('appSaved')
+      const saved = result.formulaCache.kind === 'not_refreshed'
+        ? `Saved. Formula results were not refreshed for other readers (${result.formulaCache.reason}).`
+        : t('appSaved')
       ctx.setMessage(saved)
-      if (!quiet) showToast(saved)
+      if (!quiet || result.formulaCache.kind === 'not_refreshed') showToast(saved, result.formulaCache.kind === 'not_refreshed' ? 'error' : 'success')
       return { ok: true, ...(result.file.path !== undefined ? { path: result.file.path } : {}) }
     }
     // Two-phase saves reopen twice with structural entanglement; v1 does not
@@ -503,9 +484,11 @@ export async function handleSave(
       }
       ctx.stashViewRestore(viewAtSave)
       ctx.openLazyWorkbook(second.file)
-      const saved = t('appSavedTwoPhase')
+      const saved = result.formulaCache.kind === 'not_refreshed' || second.formulaCache.kind === 'not_refreshed'
+        ? 'Saved. Formula results were not fully refreshed for other readers.'
+        : t('appSavedTwoPhase')
       ctx.setMessage(saved)
-      if (!quiet) showToast(saved)
+      if (!quiet || result.formulaCache.kind === 'not_refreshed' || second.formulaCache.kind === 'not_refreshed') showToast(saved, result.formulaCache.kind === 'not_refreshed' || second.formulaCache.kind === 'not_refreshed' ? 'error' : 'success')
       return { ok: true, ...(second.file.path !== undefined ? { path: second.file.path } : {}) }
     } catch (error: unknown) {
       if (ctx.lazyWorkbookRef.current !== state) return { ok: false }

@@ -689,6 +689,7 @@ impl WorkbookSession {
             cells: index.formula_cells.clone(),
             indexing_complete: index.complete,
             truncated: index.formula_truncated,
+            unsupported: index.formula_unsupported,
         })
     }
 
@@ -746,6 +747,7 @@ struct SheetIndex {
     /// Formula cells collected while indexing, capped at MAX_FORMULA_CELLS.
     formula_cells: Vec<CellRecord>,
     formula_truncated: bool,
+    formula_unsupported: bool,
 }
 
 #[derive(Debug)]

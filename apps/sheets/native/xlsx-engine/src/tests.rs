@@ -2644,6 +2644,7 @@ fn expands_shared_formulas_into_followers() {
         .read_formula_cells(&metadata.session_id, &sheet_id)
         .unwrap();
     assert_eq!(formulas.cells.len(), 5);
+    assert!(formulas.unsupported);
 }
 
 /// Opens a one-sheet fixture and returns its conditional rules once the
@@ -3559,4 +3560,29 @@ fn source_linked_chart_formats_follow_the_cells() {
     assert_eq!(style.color.as_deref(), Some("#FFFFFF"));
     assert_eq!(style.size, Some(12.0));
     assert_eq!(style.bold, Some(true));
+}
+
+#[test]
+fn formula_inventory_qualifies_array_and_data_table_before_cache_refresh() {
+    for kind in ["array", "dataTable"] {
+        let xml = format!(r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1"><f t="{kind}" ref="A1:A2">1+1</f><v>2</v></c></row><row r="2"><c r="A2"><v>2</v></c></row></sheetData></worksheet>"#);
+        let (_dir, path) = open_fixture(&[
+            ("xl/workbook.xml", r#"<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Data" sheetId="1" r:id="rId1"/></sheets></workbook>"#),
+            ("xl/_rels/workbook.xml.rels", r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>"#),
+            ("xl/worksheets/sheet1.xml", &xml),
+        ]);
+        let mut sessions = WorkbookSessions::new();
+        let metadata = sessions.open(&path).unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(1);
+        loop {
+            let result = sessions.read_formula_cells(&metadata.session_id, &metadata.sheets[0].id).unwrap();
+            if result.indexing_complete {
+                assert!(result.unsupported);
+                assert_eq!(result.cells.len(), 1); // follower is not an independent formula inventory entry
+                break;
+            }
+            assert!(std::time::Instant::now() < deadline);
+            std::thread::yield_now();
+        }
+    }
 }

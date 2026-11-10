@@ -5,28 +5,11 @@ import { fileURLToPath } from 'node:url'
 
 import { afterAll, describe, expect, it } from 'vitest'
 import JSZip from 'jszip'
-import { z } from 'zod'
+import { recalculated } from '../src/main/save-formulas'
 
 import { XlsxSidecarClient } from '../src/main/xlsx-sidecar-client'
 
-const recalcResultSchema = z
-  .object({
-    cells: z.array(
-      z
-        .object({
-          sheet: z.string(),
-          row: z.number().int().nonnegative(),
-          column: z.number().int().nonnegative(),
-          formatted: z.string(),
-          number: z.number().optional(),
-          isError: z.boolean(),
-          isFormula: z.boolean(),
-        })
-        .strict(),
-    ),
-    cached: z.boolean(),
-  })
-  .strict()
+const recalcResultSchema = recalculated
 
 // IronCalc's importer is strict: single-line XML (whitespace text nodes crash
 // it) and a styles.xml complete with cellStyleXfs/cellStyles. This mirrors
@@ -327,7 +310,7 @@ describe('sidecar IronCalc recalculation channel', () => {
 
   // IronCalc has no CELL("filename"); its error must not displace the
   // cached sheet-name text the file already carries.
-  it('omits erroring CELL("filename") cells so the cached value survives', async () => {
+  it('qualifies erroring CELL("filename") without dropping its coordinate', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'xlsx-recalc-test-'))
     cleanups.push(directory)
     const path = join(directory, 'recalc.xlsx')
@@ -346,7 +329,9 @@ describe('sidecar IronCalc recalculation channel', () => {
           ],
         }),
       )
-      expect(result.cells).toEqual([])
+      expect(result.cells).toHaveLength(1)
+      expect(result.cells[0]?.value).toBeNull()
+      expect(result.cells[0]?.reason).toBe('engine_gap')
     } finally {
       client.stop()
     }

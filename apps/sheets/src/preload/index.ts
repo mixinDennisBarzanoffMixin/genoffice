@@ -1,3 +1,4 @@
+import { formulaCacheSchema } from '../shared/cache-status'
 import type { AiPanelPrefs } from '@genoffice/ui'
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
@@ -1095,7 +1096,8 @@ function parseFormulaCellsResult(input: unknown): WorkbookFormulaCellsResult {
     !Array.isArray(input.cells) ||
     input.cells.length > 100_000 ||
     typeof input.indexingComplete !== 'boolean' ||
-    typeof input.truncated !== 'boolean'
+    typeof input.truncated !== 'boolean' ||
+    typeof input.unsupported !== 'boolean'
   ) {
     throw new Error('Invalid formula-cells response.')
   }
@@ -1103,6 +1105,7 @@ function parseFormulaCellsResult(input: unknown): WorkbookFormulaCellsResult {
     cells: input.cells.map(parseCellRecord),
     indexingComplete: input.indexingComplete,
     truncated: input.truncated,
+    unsupported: input.unsupported,
   }
 }
 
@@ -2565,6 +2568,7 @@ function parseSaveResult(input: unknown): WorkbookSaveResult {
     canceled: false,
     file: parseWorkbookFile(input.file),
     touchedEntries: input.touchedEntries as string[],
+    formulaCache: formulaCacheSchema.parse(input.formulaCache),
   }
 }
 

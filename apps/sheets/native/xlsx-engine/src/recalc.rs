@@ -49,6 +49,15 @@ pub struct RecalcRead {
     pub range: CellRange,
 }
 
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+pub enum RecalcValue {
+    Number(f64),
+    String(String),
+    Boolean(bool),
+    Error(String),
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecalcCell {
@@ -64,6 +73,8 @@ pub struct RecalcCell {
     /// formula whose text result merely spells one (`="#N/A"`).
     pub is_error: bool,
     pub is_formula: bool,
+    pub value: Option<RecalcValue>,
+    pub reason: Option<&'static str>,
 }
 
 #[derive(Debug, Serialize)]
@@ -284,23 +295,26 @@ fn run(
                     .ok()
                     .flatten();
                 let is_formula = formula.is_some();
-                if formatted.is_empty() && !is_formula {
-                    continue;
-                }
-                // Known engine gaps where the file's cached value beats the
-                // error: CELL("filename") is unimplemented (#175) and RATE's
-                // Newton solver dies near -100% where Excel converges (#185).
-                if formatted.starts_with('#') {
-                    if let Some(text) = &formula {
-                        let upper = text.to_uppercase();
-                        if upper.contains("CELL(") && upper.contains("\"FILENAME\"") {
-                            continue;
-                        }
-                        if formatted == "#NUM!" && upper.contains("RATE(") {
-                            continue;
-                        }
-                    }
-                }
+                let gap = formula.as_ref().is_some_and(|text| {
+                    let upper = text.to_uppercase();
+                    formatted.starts_with('#')
+                        && ((upper.contains("CELL(") && upper.contains("\"FILENAME\""))
+                            || (formatted == "#NUM!" && upper.contains("RATE(")))
+                });
+                let value = if gap || !is_formula {
+                    None
+                } else {
+                    raw_value(&entry.model, sheet, row_1, column_1, &formatted)
+                };
+                let reason = if gap {
+                    Some("engine_gap")
+                } else if !is_formula {
+                    Some("external_pinned")
+                } else if value.is_none() {
+                    Some("unavailable")
+                } else {
+                    None
+                };
                 let number = raw_number(&entry.model, sheet, row_1, column_1);
                 let is_error = matches!(
                     entry.model.get_cell_type(sheet, row_1, column_1),
@@ -314,6 +328,8 @@ fn run(
                     number,
                     is_error,
                     is_formula,
+                    value,
+                    reason,
                 });
             }
         }
@@ -381,10 +397,26 @@ fn sheet_index(model: &Model, name: &str) -> Result<u32, SidecarError> {
         .ok_or_else(|| SidecarError::InvalidRequest(format!("Unknown sheet: {name}")))
 }
 
+fn raw_value(model: &Model, sheet: u32, row: i32, column: i32, text: &str) -> Option<RecalcValue> {
+    use ironcalc::base::cell::CellValue;
+    let kind = model.get_cell_type(sheet, row, column).ok()?;
+    if matches!(kind, CellType::ErrorValue) {
+        return ["#NULL!", "#DIV/0!", "#VALUE!", "#REF!", "#NAME?", "#NUM!", "#N/A"]
+            .contains(&text)
+            .then(|| RecalcValue::Error(text.to_string()));
+    }
+    match model.get_cell_value_by_index(sheet, row, column).ok()? {
+        CellValue::Number(value) if value.is_finite() && matches!(kind, CellType::Number) => Some(RecalcValue::Number(value)),
+        CellValue::String(value) if matches!(kind, CellType::Text) => Some(RecalcValue::String(value)),
+        CellValue::Boolean(value) if matches!(kind, CellType::LogicalValue) => Some(RecalcValue::Boolean(value)),
+        _ => None,
+    }
+}
+
 fn raw_number(model: &Model, sheet: u32, row: i32, column: i32) -> Option<f64> {
     use ironcalc::base::cell::CellValue;
     match model.get_cell_value_by_index(sheet, row, column) {
-        Ok(CellValue::Number(value)) => Some(value),
+        Ok(CellValue::Number(value)) if value.is_finite() => Some(value),
         _ => None,
     }
 }
@@ -443,6 +475,32 @@ mod tests {
             .unwrap()
             .formatted
             .clone()
+    }
+
+    #[test]
+    fn raw_tags_preserve_text_boolean_empty_and_errors_without_dropping_coordinates() {
+        let mut pending = Model::new_empty("pending", "en", "UTC", "en").unwrap();
+        pending.set_user_input(0, 1, 1, "=1+1".into()).unwrap();
+        assert_eq!(raw_value(&pending, 0, 1, 1, "#ERROR!"), None);
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("typed.xlsx");
+        write_fixture(&path, &[("A1", "=10"), ("A2", "=\"001\""), ("A3", "=\"\""),
+            ("A4", "=TRUE()"), ("A5", "=FALSE()"), ("A6", "=1/0"), ("A7", "=\"#N/A\""), ("A8", "=CELL(\"filename\")")]);
+        let mut cache = RecalcCache::new();
+        let result = recalc_cells(&mut cache, &path, &[], &[RecalcRead {
+            sheet: "Sheet1".into(), range: CellRange { start_row: 0, end_row: 8, start_column: 0, end_column: 0 }
+        }]).unwrap();
+        assert_eq!(result.cells.len(), 9);
+        let values: Vec<_> = result.cells.iter().map(|cell| &cell.value).collect();
+        assert_eq!(values[0], &Some(RecalcValue::Number(10.0)));
+        assert_eq!(values[1], &Some(RecalcValue::String("001".into())));
+        assert_eq!(values[2], &Some(RecalcValue::String("".into())));
+        assert_eq!(values[3], &Some(RecalcValue::Boolean(true)));
+        assert_eq!(values[4], &Some(RecalcValue::Boolean(false)));
+        assert_eq!(values[5], &Some(RecalcValue::Error("#DIV/0!".into())));
+        assert_eq!(values[6], &Some(RecalcValue::String("#N/A".into())));
+        assert_eq!(values[7], &None);
+        assert_eq!(values[8], &None);
     }
 
     #[test]

@@ -1,3 +1,4 @@
+import { input } from '../shared/recalc-input'
 import { CellValueType } from '@univerjs/core'
 
 import type {
@@ -2191,12 +2192,7 @@ export function journalSize(journal: EditJournal): number {
 /// User input for the recalc engine: formulas verbatim, booleans
 /// as TRUE/FALSE, and text guarded against reinterpretation as a formula.
 export function toRecalcUserInput(entry: JournalEntry): string {
-  if (entry.formula) return entry.formula
-  const { value } = entry
-  if (value === null) return ''
-  if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE'
-  if (typeof value === 'number') return String(value)
-  return value.startsWith('=') || value.startsWith("'") ? `'${value}` : value
+  return input(entry.value, entry.formula)
 }
 
 export function toSaveEdits(journal: EditJournal): WorkbookCellEdit[] {

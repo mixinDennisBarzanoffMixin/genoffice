@@ -793,6 +793,7 @@ export async function planCellEditsToXlsx(
   }
 
   const sheetNames = new Set([
+    ...formulaValues.map((sheet) => sheet.sheetName),
     ...edits.map((edit) => edit.sheetName),
     ...bulkConstantFills.map((fill) => fill.sheetName),
     ...structuralOps.map((sheet) => sheet.sheetName),
@@ -2142,7 +2143,8 @@ function patchFormulaCachedValue(
   // Formula results carry t="str" for text, t="e" for an engine-typed error,
   // no t (numeric default) otherwise; booleans use t="b" with 1/0. A null
   // result drops the cached value entirely.
-  const numeric = typeof value === 'number' && Number.isFinite(value)
+  if (typeof value === 'number' && !Number.isFinite(value)) throw new Error('Non-finite formula cache')
+  const numeric = typeof value === 'number'
   const stripped = attrs.replace(/\st="[^"]*"/g, '')
   let typeAttr = ''
   let valueXml = ''
@@ -2154,7 +2156,7 @@ function patchFormulaCachedValue(
   } else if (typeof value === 'object' && value !== null) {
     typeAttr = ' t="e"'
     valueXml = `<v>${escapeCellText(value.error)}</v>`
-  } else if (value !== null && value !== undefined && value !== '') {
+  } else if (typeof value === 'string') {
     typeAttr = ' t="str"'
     valueXml = `<v>${escapeCellText(String(value))}</v>`
   }

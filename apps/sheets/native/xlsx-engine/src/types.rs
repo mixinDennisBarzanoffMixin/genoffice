@@ -597,6 +597,7 @@ pub struct ProtectedRangeInfo {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FormulaCellsResult {
+    pub unsupported: bool,
     pub cells: Vec<CellRecord>,
     pub indexing_complete: bool,
     /// True when the sheet has more formula cells than the response cap —

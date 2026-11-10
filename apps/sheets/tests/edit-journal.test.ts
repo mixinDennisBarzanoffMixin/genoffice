@@ -1147,7 +1147,9 @@ describe('toRecalcUserInput', () => {
     expect(toRecalcUserInput({ ...base, value: true })).toBe('TRUE')
     expect(toRecalcUserInput({ ...base, value: false })).toBe('FALSE')
     expect(toRecalcUserInput({ ...base, value: null })).toBe('')
-    expect(toRecalcUserInput({ ...base, value: 'plain' })).toBe('plain')
+    expect(toRecalcUserInput({ ...base, value: 'plain' })).toBe("'plain")
+    expect(toRecalcUserInput({ ...base, value: '001' })).toBe("'001")
+    expect(toRecalcUserInput({ ...base, value: 'TRUE' })).toBe("'TRUE")
   })
 
   it('escapes text that the engine would reinterpret as a formula', () => {

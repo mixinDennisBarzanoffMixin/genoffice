@@ -1,3 +1,4 @@
+import { refresh, recalculated } from './save-formulas'
 import { createHash, randomUUID } from 'node:crypto'
 import {
   createReadStream,
@@ -2548,24 +2549,7 @@ export function registerSheetsIpc(): void {
   // IronCalc recalculation: sheet ids resolve through the session's file
   // sheet names, so the renderer never sees paths and sheets added this
   // session (no file part) fail closed before reaching the engine.
-  const sidecarRecalcResultSchema = z
-    .object({
-      cells: z.array(
-        z
-          .object({
-            sheet: z.string(),
-            row: z.number().int().nonnegative(),
-            column: z.number().int().nonnegative(),
-            formatted: z.string(),
-            number: z.number().optional(),
-            isError: z.boolean().optional(),
-            isFormula: z.boolean(),
-          })
-          .strict(),
-      ),
-      cached: z.boolean().optional(),
-    })
-    .strict()
+  const sidecarRecalcResultSchema = recalculated
   ipcMain.handle(IPC_CHANNELS.recalcWorkbook, async (event, input: unknown) => {
     const entry = sessionFor(event)
     const request = workbookRecalcRequestSchema.parse(input)
@@ -3029,7 +3013,7 @@ export function registerSheetsIpc(): void {
     // Restored session saved (possibly Save As elsewhere): the unsaved work is
     // persisted, so the original's recovery copy must not re-offer it.
     if (session.restoreTarget !== undefined) clearWorkbookRecovery(session.restoreTarget)
-    return { canceled: false, file, touchedEntries: mutation.touchedEntries }
+    return { canceled: false, file, touchedEntries: mutation.touchedEntries, formulaCache: mutation.formulaCache }
   })
 
   // Chunked upload for edit sets too large to inline in one save request:
@@ -3582,7 +3566,7 @@ async function writeWorkbookTo(
   session: SessionInfo,
   request: WorkbookSaveRequest,
   targetPath: string,
-): Promise<Awaited<ReturnType<typeof saveWorkbookViaSidecar>>> {
+): Promise<Awaited<ReturnType<typeof saveWorkbookViaSidecar>> & { formulaCache: Awaited<ReturnType<typeof refresh>>['status'] }> {
   // Sheet ops resolve first: added sheets have Univer ids the session map
   // doesn't know, so cell edits into them resolve through the op's name.
   const addedSheetNames = new Map<string, string>()
@@ -3771,22 +3755,8 @@ async function writeWorkbookTo(
     sheetName: resolveSheetName(sheetId),
     ...group,
   }))
-  // Recalculated formula values: sheetId → file sheet name, the same
-  // resolution the cell edits use.
-  const formulaValuesBySheet = new Map<
-    string,
-    { row: number; column: number; value: string | number | boolean | null | { error: string } }[]
-  >()
-  for (const cell of request.formulaValues) {
-    const sheetName = resolveSheetName(cell.sheetId)
-    const list = formulaValuesBySheet.get(sheetName) ?? []
-    list.push({ row: cell.row, column: cell.column, value: cell.value })
-    formulaValuesBySheet.set(sheetName, list)
-  }
-  const formulaValues = [...formulaValuesBySheet].map(([sheetName, cells]) => ({
-    sheetName,
-    cells,
-  }))
+  const cache = await refresh(client.forSave(), session, request)
+  const formulaValues = cache.values
   const mutation = await saveWorkbookViaSidecar({
     client,
     // The snapshot, not the live path: the save base must be the bytes this
@@ -3834,7 +3804,7 @@ async function writeWorkbookTo(
           }),
     })),
   })
-  return mutation
+  return { ...mutation, formulaCache: cache.status }
 }
 
 /** Copies the workbook into the temp snapshot dir; the copy is the session's

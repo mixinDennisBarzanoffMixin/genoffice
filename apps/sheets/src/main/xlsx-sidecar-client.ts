@@ -32,6 +32,13 @@ interface SidecarResponse {
 }
 
 export class XlsxSidecarClient {
+  forSave() {
+    return {
+      formulas: (input: Parameters<XlsxSidecarClient['readFormulaCells']>[0]) => this.readFormulaCells(input),
+      recalc: (input: Parameters<XlsxSidecarClient['recalcCells']>[0]) => this.recalcCells(input),
+    }
+  }
+
   private process: ChildProcessWithoutNullStreams | null = null
   private lines: Interface | null = null
   private readonly pending = new Map<string, PendingRequest>()

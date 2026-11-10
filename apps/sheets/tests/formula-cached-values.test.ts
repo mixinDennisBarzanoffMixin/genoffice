@@ -54,6 +54,19 @@ describe('formula cached values', () => {
     expect(cell).toContain('<f>')
   })
 
+  it('empty text remains distinct from a missing cache', async () => {
+    const xml = await saveWithFormulaValues([{ row: 1, column: 3, value: '' }])
+    const cell = /<c[^>]*r="D2"[^>]*>[\s\S]*?<\/c>/.exec(xml)?.[0]
+    expect(cell).toContain('t="str"')
+    expect(cell).toContain('<v></v>')
+  })
+
+  it('rejects non-finite cached values instead of writing text', async () => {
+    for (const value of [NaN, Infinity, -Infinity]) {
+      await expect(saveWithFormulaValues([{ row: 1, column: 3, value }])).rejects.toThrow('Non-finite')
+    }
+  })
+
   it('a null result clears the cached value but keeps the formula', async () => {
     const xml = await saveWithFormulaValues([{ row: 1, column: 3, value: null }])
     const cell = /<c[^>]*r="D2"[^>]*>[\s\S]*?<\/c>/.exec(xml)?.[0] ?? ''
