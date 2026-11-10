@@ -63,6 +63,8 @@ import { useAutoSavePref, useHostAgent, type AiScopeQuoteData } from '@genoffice
 
 import {
   CellValueType,
+  ICommandService,
+  CommandType,
   getNumfmtParseValueFilter,
   BooleanNumber,
   InterceptorEffectEnum,
@@ -456,7 +458,8 @@ function dateTextKind(value: string): 'date-like' | 'text' {
   return kind
 }
 
-export function App(): React.JSX.Element {
+export function App({ readonly = false }: { readonly?: boolean } = {}): React.JSX.Element {
+  const immutable = useRef(false)
   const adapterRef = useRef(new InMemoryWorkbookAdapter(initialSnapshot))
   const univerRef = useRef<UniverRuntime | null>(null)
   const lazyWorkbookRef = useRef<LazyWorkbookState | null>(null)
@@ -532,7 +535,7 @@ export function App(): React.JSX.Element {
   // pending edits of the open workbook. The journal is read at tick time so
   // the interval stays stable; demo mode has no backing file and is skipped.
   useEffect(() => {
-    if (!autoSave) return
+    if (readonly || !autoSave) return
     let saving = false
     const tick = () => {
       const state = lazyWorkbookRef.current
@@ -1490,7 +1493,7 @@ export function App(): React.JSX.Element {
   useHostAgent(createWorkbookSkill(sheetsSkillDeps()), HOST_EXCLUDED)
 
   useEffect(() => {
-    void window.desktopApi.getAiSettings().then(setAiSettingsState)
+    if (!readonly) void window.desktopApi.getAiSettings().then(setAiSettingsState)
   }, [])
 
   useEffect(() => {
@@ -1501,6 +1504,7 @@ export function App(): React.JSX.Element {
       document.documentElement.getAttribute('data-theme') === 'dark' ||
       (!document.documentElement.hasAttribute('data-theme') && prefersDark.matches)
     const runtime = createUniver({
+      readonly,
       // green selection/highlight instead of Univer's default blue
       theme: greenTheme,
       darkMode: isDarkTheme(),
@@ -1560,6 +1564,14 @@ export function App(): React.JSX.Element {
     installFilterRangeOutlineSuppression(runtime)
     loadSnapshotIntoUniver(runtime, initialSnapshot, 'new-workbook', 'Untitled')
     univerRef.current = runtime
+    if (readonly) {
+      const commands = runtime.univer.__getInjector().get(ICommandService)
+      runtime.univerAPI.onBeforeCommandExecute((command) => {
+        if (!immutable.current || journalSuppression.active) return
+        if (commands.getCommand(command.id)?.[0].type !== CommandType.OPERATION)
+          throw new Error('Connected workbook is read-only')
+      })
+    }
     // a throwing construction must not poison the injector's depth counter
     installInjectorResolutionGuard(runtime)
     // find-bar reveals share scrollToCell's broken freeze offset (r135)
@@ -1782,7 +1794,7 @@ export function App(): React.JSX.Element {
         // The event carries the true post-scroll position; getVisibleRange
         // inside loadVisibleRange lags a frame.
         const eventStart = params as { sheetViewStartRow?: number; sheetViewStartColumn?: number }
-        void loadVisibleRange(
+        const visible = loadVisibleRange(
           runtime,
           lazyWorkbookRef,
           worksheet,
@@ -1929,7 +1941,7 @@ export function App(): React.JSX.Element {
     const journalDisposable = runtime.univerAPI.addEvent(
       runtime.univerAPI.Event.CommandExecuted,
       (event) => {
-        if (journalSuppression.active) return
+        if (readonly || journalSuppression.active) return
         // The formula engine re-applies cached results with these execution
         // options; they are derived state, never user edits.
         const options = event.options as { fromFormula?: boolean } | undefined
@@ -2800,7 +2812,7 @@ export function App(): React.JSX.Element {
       runtime.univerAPI.Event.CellClicked,
       ({ worksheet, row, column }) => {
         const state = lazyWorkbookRef.current
-        if (!state) return
+        if (!state || readonly) return
         // A journaled link edit (set, changed, or removed) wins over the
         // file's streamed target.
         const journaled = hyperlinkEditAt(state.editJournal, worksheet.getSheetId(), row, column)
@@ -3500,6 +3512,7 @@ export function App(): React.JSX.Element {
   }, [])
 
   function handleRibbonCommand(command: string): void {
+    if (readonly) return
     if (command === 'watch-window') {
       setWatchOpen((open) => !open)
       return
@@ -3724,7 +3737,7 @@ export function App(): React.JSX.Element {
     setWorkbookFile(selected)
     // Calculation mode is workbook state: the next file starts automatic,
     // in the engine and in the menu alike.
-    resetCalculationMode(univerRef.current)
+    if (!readonly) resetCalculationMode(univerRef.current)
     setCalcManual(false)
     // Values verified against the previous workbook mean nothing for this one.
     clearVerifiedFormulaValues()
@@ -3769,7 +3782,7 @@ export function App(): React.JSX.Element {
       showFormulaSheets: new Set(
         selected.sheets.filter((sheet) => sheet.showFormulas).map((sheet) => sheet.id),
       ),
-      formulaMode: gridCellCount <= FORMULA_MODE_MAX_CELLS,
+      formulaMode: !readonly && gridCellCount <= FORMULA_MODE_MAX_CELLS,
       editJournal: createEditJournal(),
       flags: { preloadComplete: false, preloadRunning: false },
       closure: { status: 'idle', pinned: new Map() },
@@ -3827,7 +3840,7 @@ export function App(): React.JSX.Element {
     }
     // Dev-only diagnosis hooks: e2e drivers dump journal state and dispatch
     // Univer commands (drag interactions are hard to synthesize over CDP).
-    if (import.meta.env.DEV) {
+    if (!readonly && import.meta.env.DEV) {
       ;(window as unknown as Record<string, unknown>).__journal = state.editJournal
       ;(window as unknown as Record<string, unknown>).__lazyState = state
       ;(window as unknown as Record<string, unknown>).__univerRuntime = univerRef.current
@@ -3842,7 +3855,7 @@ export function App(): React.JSX.Element {
     // Built-app e2e hook, off by default: the preload exposes
     // __genofficeDebugHooks only when GENOFFICE_DEBUG_HOOKS=1 (scroll/freeze
     // drivers read Univer's render state through the Facade).
-    if ((window as unknown as Record<string, unknown>).__genofficeDebugHooks === true) {
+    if (!readonly && (window as unknown as Record<string, unknown>).__genofficeDebugHooks === true) {
       ;(window as unknown as Record<string, unknown>).__genofficeDebug = {
         univerAPI: univerRef.current?.univerAPI,
       }
@@ -3979,7 +3992,13 @@ export function App(): React.JSX.Element {
             ? { row: restore.viewRow, column: restore.viewColumn }
             : undefined,
         )
-        if (state.formulaMode) {
+        if (readonly) {
+          void visible.then(() => {
+            workbook.setEditable(false)
+            immutable.current = true
+            window.dispatchEvent(new Event('genoffice:readonly-ready'))
+          }).catch(() => window.dispatchEvent(new Event('genoffice:readonly-failed')))
+        } else if (state.formulaMode) {
           void preloadEntireWorkbook(runtime, lazyWorkbookRef, setMessage)
         } else {
           // Deferred so first paint and initial streaming win the sidecar.
@@ -4017,6 +4036,7 @@ export function App(): React.JSX.Element {
     quiet = false,
     explicitTarget?: { path: string; overwrite: boolean },
   ): Promise<SaveOutcome> {
+    if (readonly) throw new Error("Connected workbook save is unavailable")
     return handleSaveImpl(saveContext(), mode, quiet, explicitTarget)
   }
   closeSaveRef.current = async () => {
@@ -4395,6 +4415,7 @@ export function App(): React.JSX.Element {
         />
       )}
       <ExcelShell
+        readonly={readonly}
         prompt={prompt}
         preview={preview}
         sheetHasContent={sheetHasContent}

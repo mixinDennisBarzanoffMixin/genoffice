@@ -1378,7 +1378,7 @@ export async function activateFormulaClosure(
   setMessage: (message: string) => void,
 ): Promise<void> {
   const state = lazyWorkbookRef.current
-  if (!state || state.formulaMode || state.closure.status !== 'idle') return
+  if (!state || state.file.readOnly || state.formulaMode || state.closure.status !== 'idle') return
   state.closure.status = 'pending'
   const giveUp = (): void => {
     if (lazyWorkbookRef.current !== state) return
@@ -2276,7 +2276,7 @@ export function queueFormulaRecalc(
   setMessage: (message: string) => void,
 ): void {
   const state = lazyWorkbookRef.current
-  if (!state || state.formulaMode || state.closure.status !== 'unavailable') return
+  if (!state || state.file.readOnly || state.formulaMode || state.closure.status !== 'unavailable') return
   // minimal states (tests, partial teardown) may carry no recalc slot
   if (!state.recalc || state.recalc.failures >= RECALC_MAX_FAILURES) return
   if (state.recalc.engineOverBudget) return

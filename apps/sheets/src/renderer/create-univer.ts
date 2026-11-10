@@ -1,3 +1,4 @@
+import { configuration } from "./readonly"
 /// Local replacement for the `createUniver` helper from `@univerjs/presets`.
 ///
 /// The `@univerjs/presets` meta-package bundles every preset — including the
@@ -18,13 +19,14 @@ export interface IPreset {
 }
 
 export interface CreateUniverOptions extends Partial<IUniverConfig> {
+  readonly?: boolean
   presets: Array<IPreset | [IPreset, { lazy?: boolean }]>
   plugins?: PluginEntry[]
   override?: DependencyOverride
 }
 
 export function createUniver(options: CreateUniverOptions): { univer: Univer; univerAPI: FUniver } {
-  const { presets, plugins, override = [], ...univerConfig } = options
+  const { presets, plugins, readonly = false, override = [], ...univerConfig } = options
   const univer = new Univer({ logLevel: LogLevel.WARN, ...univerConfig, override })
 
   // Later registrations win across presets (same dedupe semantics as the
@@ -50,7 +52,7 @@ export function createUniver(options: CreateUniverOptions): { univer: Univer; un
     registry.set(plugin.pluginName, { plugin, options: pluginOptions })
   }
   for (const { plugin, options: pluginOptions } of registry.values()) {
-    univer.registerPlugin(plugin, pluginOptions)
+    univer.registerPlugin(plugin, configuration(plugin.pluginName, pluginOptions, readonly))
   }
 
   return { univer, univerAPI: FUniver.newAPI(univer) }

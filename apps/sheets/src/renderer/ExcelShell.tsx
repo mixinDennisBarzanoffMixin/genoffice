@@ -161,6 +161,7 @@ function ToolSymbol({ symbol }: { readonly symbol: string }): React.JSX.Element 
 }
 
 interface ExcelShellProps {
+  readonly readonly?: boolean
   readonly prompt: string
   readonly preview: ChangePlan | null
   readonly selectionFormat: SelectionFormat | null
@@ -312,6 +313,7 @@ export interface PageLayoutEcho {
 }
 
 export function ExcelShell({
+  readonly = false,
   prompt,
   preview,
   selectionFormat,
@@ -557,7 +559,7 @@ export function ExcelShell({
 
   return (
     <main className={`app-shell ${isCopilotOpen ? '' : 'copilot-collapsed'}`}>
-      <header className={`excel-header ${collapse.rootClass}`} ref={collapse.rootRef}>
+      {!readonly && <header className={`excel-header ${collapse.rootClass}`} ref={collapse.rootRef}>
         <nav
           className={`ribbon-tabs ${IN_TAB ? '' : IS_MAC ? 'ribbon-tabs-mac' : 'ribbon-tabs-win'}`}
           aria-label={t('appScopeWorkbook')}
@@ -694,11 +696,11 @@ export function ExcelShell({
           state={collapse}
           labels={{ collapse: t('appRibbonCollapse'), pin: t('appRibbonPin') }}
         />
-      </header>
+      </header>}
 
       {/* AI panel docks on the left, full height under the ribbon (unified with docs) */}
       <div className="sheet-body">
-        <AiChatPanel
+        {!readonly && <AiChatPanel
           isOpen={isCopilotOpen}
           hasContent={sheetHasContent}
           chat={chat}
@@ -724,12 +726,12 @@ export function ExcelShell({
           onCitation={onAiCitation}
           onExpand={() => setIsCopilotOpen(true)}
           onCollapse={() => setIsCopilotOpen(false)}
-        />
+        />}
         <div className="sheet-main">
           <section className="workbook-area">
             <div id="univer-container" className="spreadsheet" />
           </section>
-          {aiSelectionAskAnchor && aiScopeRange && !aiBusy && (
+          {!readonly && aiSelectionAskAnchor && aiScopeRange && !aiBusy && (
             <AiSelectionAsk
               anchor={aiSelectionAskAnchor}
               range={aiScopeRange}
