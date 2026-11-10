@@ -3992,6 +3992,7 @@ export function App({ readonly = false }: { readonly?: boolean } = {}): React.JS
           restore && restoredSheet
             ? { row: restore.viewRow, column: restore.viewColumn }
             : undefined,
+          readonly,
         )
         if (readonly) {
           void loading.then(() => {

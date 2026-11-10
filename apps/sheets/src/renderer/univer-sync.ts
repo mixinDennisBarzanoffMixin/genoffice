@@ -1242,6 +1242,7 @@ export async function loadVisibleRange(
   worksheet: UniverWorksheet,
   setMessage: (message: string) => void,
   viewportStart?: { row: number; column: number },
+  strict = false,
 ): Promise<void> {
   const state = lazyWorkbookRef.current
   if (!state) return
@@ -1283,7 +1284,11 @@ export async function loadVisibleRange(
     screenRowCount,
     screenColumnCount,
   )
-  await loadRange(runtime, lazyWorkbookRef, worksheet, range, setMessage)
+  await loadRange(runtime, lazyWorkbookRef, worksheet, range, setMessage, false, strict, 0, null, false,
+    strict ? performance.now() + 5_000 : undefined)
+  if (strict && (lazyWorkbookRef.current !== state || state.decorationsPendingSheets.has(sheetId) ||
+    !state.loadedRanges.has(sheetId) || !containsRange(state.loadedRanges.get(sheetId)!, range)))
+    throw new Error('Initial workbook range is incomplete')
   await loadFrozenColumnStrip(lazyWorkbookRef, worksheet, sheet, range)
   await extendWindowPastHiddenRows(
     runtime,
@@ -2792,7 +2797,9 @@ async function loadRange(
   waitStalls = 0,
   lastIndexedRow: number | null = null,
   bulk = false,
+  deadline?: number,
 ): Promise<void> {
+  if (deadline !== undefined && performance.now() >= deadline) throw new Error('Initial workbook range timed out')
   const state = lazyWorkbookRef.current
   if (!state) return
   const sheetId = worksheet.getSheetId()
@@ -2864,7 +2871,8 @@ async function loadRange(
     if (availableEndRow !== null && availableEndRow >= range.startRow) {
       const availableRange = { ...range, endRow: availableEndRow }
       const alreadyLoaded = state.loadedRanges.get(sheetId)
-      if (!alreadyLoaded || !containsRange(alreadyLoaded, availableRange)) {
+      const completed = mapped.raw.indexingComplete && state.decorationsPendingSheets.has(sheetId)
+      if (completed || !alreadyLoaded || !containsRange(alreadyLoaded, availableRange)) {
         if (state.formulaMode) recordCachedFormulaValues(state, sheetId, mapped.screen.cells)
         recordRowStyleKeys(state, sheetId, mapped.screen.rows)
         recordHiddenFileRows(state, sheetId, mapped.screen.rows, availableRange)
@@ -3045,6 +3053,14 @@ async function loadRange(
           t('appIndexing', { name: sheet?.name ?? sheetId, rows: indexedRows.toLocaleString() }),
         )
       }
+      if (deadline !== undefined) {
+        if (performance.now() + 250 >= deadline) throw new Error('Initial workbook range timed out')
+        await new Promise((resolve) => setTimeout(resolve, 250))
+        if (lazyWorkbookRef.current !== state) throw new Error('Workbook load was replaced')
+        state.loadingKeys.delete(sheetId)
+        await loadRange(runtime, lazyWorkbookRef, worksheet, range, setMessage, true, true, 0, null, bulk, deadline)
+        return
+      }
       const nextStalls =
         waitForRequestedRange && (availableEndRow === null || availableEndRow < range.endRow)
           ? nextIndexWaitStall(waitStalls, lastIndexedRow, result.indexedThroughRow)
@@ -3088,6 +3104,7 @@ async function loadRange(
     if (lazyWorkbookRef.current === state && isActiveSheet(runtime, sheetId)) {
       setMessage(error instanceof Error ? error.message : t('appLoadRangeFailed'))
     }
+    if (deadline !== undefined) throw error
   } finally {
     if (state.loadingKeys.get(sheetId) === requestKey) {
       state.loadingKeys.delete(sheetId)

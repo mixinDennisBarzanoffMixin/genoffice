@@ -57,6 +57,7 @@ export interface LazyWorkbookState {
   /// Sheets whose last range read predated the sidecar's indexingComplete:
   /// conditional formatting / filters / validations were not yet available,
   /// so an already-loaded range must not satisfy the next load request.
+  /// The first complete reply also reinstalls values before clearing this flag.
   readonly decorationsPendingSheets: Set<string>
   /// File-side worksheet protection, known once a sheet finishes indexing.
   readonly sheetProtections: Map<string, { protected: boolean; hasPassword: boolean }>
