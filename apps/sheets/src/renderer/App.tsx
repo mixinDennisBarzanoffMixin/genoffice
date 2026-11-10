@@ -1759,7 +1759,7 @@ export function App({ readonly = false }: { readonly?: boolean } = {}): React.JS
     const cfDisplayKeyDisposable = installCfDisplayKeyCompare(runtime)
     // Empty-value formula results (IFERROR/IF/CHOOSE over blank refs)
     // display as 0 like Excel.
-    const nullResultDisposable = installFormulaNullResultFix(runtime)
+    const nullResultDisposable = readonly ? undefined : installFormulaNullResultFix(runtime)
     // Copy/cut load their selection into the lazy window first so streamed
     // workbooks don't serialize blanks for never-viewed rows.
     const copyMaterializeDisposable = installCopyMaterialize(runtime, lazyWorkbookRef, setMessage)
@@ -2870,7 +2870,7 @@ export function App({ readonly = false }: { readonly?: boolean } = {}): React.JS
       multiRowAutofitDisposable.dispose()
       cfFormulaFoldDisposable.dispose()
       cfDisplayKeyDisposable.dispose()
-      nullResultDisposable.dispose()
+      nullResultDisposable?.dispose()
       copyMaterializeDisposable.dispose()
       dataValidationChromeDisposable.dispose()
       dataValidationMarkerDisposable.dispose()
