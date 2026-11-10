@@ -34,12 +34,13 @@ export async function refresh(
   const formulas = new Map<string, { sheet: string; row: number; column: number; formula: string }>()
   const deadline = performance.now() + 1000
   for (const [id, sheet] of session.sheetNames) {
+    if (performance.now() >= deadline) return partial('inventory')
     let result = workbookFormulaCellsResultSchema.parse(await access.formulas({ sessionId: request.sessionId, sheetId: id }))
     while (!result.indexingComplete && performance.now() < deadline) {
       await new Promise(resolve => setTimeout(resolve, 20))
       result = workbookFormulaCellsResultSchema.parse(await access.formulas({ sessionId: request.sessionId, sheetId: id }))
     }
-    if (!result.indexingComplete || result.truncated) return partial('inventory')
+    if (performance.now() >= deadline || !result.indexingComplete || result.truncated) return partial('inventory')
     // Shared, array and data-table formulas need coverage beyond ordinary formula coordinates.
     if (result.unsupported) return partial('unsupported')
     for (const cell of result.cells) {

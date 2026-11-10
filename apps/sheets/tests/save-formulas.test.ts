@@ -60,3 +60,15 @@ test('unsupported results preserve caches and report qualification', async () =>
   expect(result.values).toEqual([])
   expect(result.status).toEqual({ kind: 'not_refreshed', reason: 'unsupported', count: 1 })
 })
+
+test('incomplete inventory stops within its bounded preflight and never evaluates', async () => {
+  const start = performance.now()
+  const result = await refresh({ formulas: async () => ({ ...inventory, indexingComplete: false }), recalc: async () => { throw new Error('must not run') } }, session, request())
+  expect(result.status.reason).toBe('inventory')
+  expect(performance.now() - start).toBeLessThan(2000)
+})
+test('the existing 128-rectangle cap remains an explicit partial outcome', async () => {
+  const cells = Array.from({ length: 129 }, (_, row) => ({ row, column: 1, formula: '=A1+2', value: 3 }))
+  const result = await refresh({ formulas: async () => ({ ...inventory, cells }), recalc: async () => { throw new Error('must not run') } }, session, request())
+  expect(result.status.reason).toBe('limit')
+})
