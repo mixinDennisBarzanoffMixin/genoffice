@@ -578,7 +578,6 @@ export function ExcelShell({
               <option key={percent} value={percent}>{percent}%</option>)}
           </select>
         </label>
-        <button type="button" title={t('appResetZoom')} onClick={() => onCommand('zoom-reset')}>100%</button>
         <button type="button" onClick={() => onCommand('zoom-to-selection')}>{t('appZoomToSelection')}</button>
       </div>}
       {!readonly && <header className={`excel-header ${collapse.rootClass}`} ref={collapse.rootRef}>
