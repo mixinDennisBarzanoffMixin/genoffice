@@ -650,7 +650,7 @@ export const it = {
   appRecalcDone:
     'Formule ricalcolate in base alle tue modifiche ({count} celle, motore di fallback).',
   appIndexing: 'Indicizzazione di {name}: {rows} righe pronte.',
-  appStreamingRows: 'Caricamento in streaming di {name}: {rows} righe disponibili.',
+
   appLoadRangeFailed: "Impossibile caricare l'intervallo visibile.",
   appFullyLoaded:
     'Cartella di lavoro completamente caricata — le formule si ricalcolano in tempo reale, righe/colonne modificabili.',

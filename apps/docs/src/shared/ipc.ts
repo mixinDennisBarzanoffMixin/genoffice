@@ -421,9 +421,9 @@ export interface DesktopApi {
   /** start a streaming AI call; deltas arrive via onAiStream with the same requestId */
   aiStream(request: AiStreamRequest): Promise<void>
   aiStreamCancel(requestId: string): Promise<void>
-  /** Genspark account status (gsk login state); withEmail also returns the email (needs a network request, slower) */
+  /** Copilot account status (gsk login state); withEmail also returns the email (needs a network request, slower) */
   aiGskStatus(withEmail?: boolean): Promise<GenSparkAccountStatus>
-  /** Open the browser to log in to Genspark (fire-and-forget; aiGskStatus flips to logged-in when done) */
+  /** Open the browser to log in to Copilot (fire-and-forget; aiGskStatus flips to logged-in when done) */
   aiGskLogin(): Promise<void>
   webSearch(
     query: string,
@@ -452,7 +452,7 @@ export interface DesktopApi {
     error?: string
   }>
   fetchImage(url: string): Promise<{ base64: string; mime: string } | null>
-  /** AI image generation via the Genspark cloud channel (requires login + cloud tools) */
+  /** AI image generation via the Copilot cloud channel (requires login + cloud tools) */
   aiGenerateImage(op: {
     prompt: string
     aspectRatio?: string

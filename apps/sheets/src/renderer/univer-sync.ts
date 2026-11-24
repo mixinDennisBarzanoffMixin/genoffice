@@ -1574,14 +1574,6 @@ export async function readCopySourceDirect(
       startColumn: bounds.startColumn,
       endColumn: bounds.endColumn,
     }
-    if (rows > chunkRows) {
-      setMessage(
-        t('appStreamingRows', {
-          name: state.file.name,
-          rows: `${(startRow - bounds.startRow).toLocaleString()} / ${rows.toLocaleString()}`,
-        }),
-      )
-    }
     // Background indexing may not have reached these rows yet — poll like
     // the precedent pinner; on the deadline the caller falls back.
     const deadline = Date.now() + 120_000
@@ -3141,13 +3133,6 @@ async function stream(
         }, 250)
         state.retryTimers.set(sheetId, timer)
       }
-    } else if (isActiveSheet(runtime, sheetId)) {
-      setMessage(
-        t('appStreamingRows', {
-          name: state.file.name,
-          rows: sheet?.rowCount.toLocaleString() ?? '?',
-        }),
-      )
     }
   } catch (error: unknown) {
     if (lazyWorkbookRef.current === state && isActiveSheet(runtime, sheetId)) {
@@ -3250,7 +3235,6 @@ export async function applyRangeInLoadedChunks(
   const chunkRows = state.flags.preloadComplete
     ? bounds.endRow - bounds.startRow + 1
     : Math.max(1, Math.floor(SIDECAR_RANGE_CELL_LIMIT / loadWidth))
-  const totalRows = bounds.endRow - bounds.startRow + 1
   // The final chunk's window stays resident after the loop (the viewport
   // refetch below early-returns when that window already contains the view),
   // so only non-final chunks may skip the wrap auto-fit measure.
@@ -3262,14 +3246,6 @@ export async function applyRangeInLoadedChunks(
         endRow: Math.min(bounds.endRow, startRow + chunkRows - 1),
         startColumn: bounds.startColumn,
         endColumn: bounds.endColumn,
-      }
-      if (totalRows > chunkRows && isActiveSheet(runtime, sheetId)) {
-        setMessage(
-          t('appStreamingRows', {
-            name: state.file.name,
-            rows: `${(startRow - bounds.startRow).toLocaleString()} / ${totalRows.toLocaleString()}`,
-          }),
-        )
       }
       if (!state.flags.preloadComplete && extent) {
         // Clamp the load to the data extent — rows/columns beyond it have

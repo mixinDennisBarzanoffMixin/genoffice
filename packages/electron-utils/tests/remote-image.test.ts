@@ -4,11 +4,9 @@ import { fetchRemoteImage, remoteImageHeaders } from '../src/remote-image'
 const png = () => new Response('img', { status: 200 })
 
 describe('remoteImageHeaders', () => {
-  it('sends a Referer for genspark hosts', () => {
-    expect(remoteImageHeaders('https://sspark.genspark.ai/a.png').Referer).toBe(
-      'https://www.genspark.ai/',
-    )
-    expect(remoteImageHeaders('https://genspark.ai/a.png').Referer).toBe('https://www.genspark.ai/')
+  it('does not impersonate an upstream provider origin', () => {
+    expect(remoteImageHeaders('https://sspark.genspark.ai/a.png').Referer).toBeUndefined()
+    expect(remoteImageHeaders('https://genspark.ai/a.png').Referer).toBeUndefined()
   })
 
   it('sends no Referer for other hosts (including lookalikes)', () => {
@@ -39,7 +37,7 @@ describe('fetchRemoteImage', () => {
     expect(resp?.ok).toBe(true)
     expect(fetchImpl).toHaveBeenCalledTimes(1)
     const headers = fetchImpl.mock.calls[0]![1].headers as Record<string, string>
-    expect(headers.Referer).toBe('https://www.genspark.ai/')
+    expect(headers.Referer).toBeUndefined()
   })
 
   it('retries transient statuses until success', async () => {

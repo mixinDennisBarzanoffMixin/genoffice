@@ -46,6 +46,7 @@ interface Props {
   onSendNow?: (text: string) => void
   /** Disables "Add to queue" only; sending now never touches the queue */
   queueFull?: boolean
+  sendOnly?: boolean
 }
 
 const WIDTH = 340
@@ -157,6 +158,7 @@ export function AiAskPopover({
   onCancel,
   onSendNow,
   queueFull,
+  sendOnly,
 }: Props): React.JSX.Element | null {
   const { t } = useI18n()
   const [text, setText] = useState(initialText ?? '')
@@ -186,7 +188,7 @@ export function AiAskPopover({
   }, [getAnchorRect])
 
   // A full queue blocks queueing only for new asks; edits update in place
-  const queueBlocked = Boolean(queueFull && onSendNow)
+  const queueBlocked = Boolean((queueFull || sendOnly) && onSendNow)
 
   /** Clicking away keeps whatever was typed: it lands in the queue, where it can still be edited or removed */
   const commitOrCancel = useCallback(() => {
@@ -313,14 +315,16 @@ export function AiAskPopover({
             >
               {t('aiAskSendNow')}
             </button>
-            <button
-              className="ai-ask-confirm"
-              disabled={!canSubmit || queueFull}
-              data-tip={queueFull ? t('aiAskQueueFull', { max: EDIT_QUEUE_MAX }) : undefined}
-              onClick={() => canSubmit && !queueFull && onSubmit(text.trim())}
-            >
-              {t('aiAskQueue')}
-            </button>
+            {!sendOnly && (
+              <button
+                className="ai-ask-confirm"
+                disabled={!canSubmit || queueFull}
+                data-tip={queueFull ? t('aiAskQueueFull', { max: EDIT_QUEUE_MAX }) : undefined}
+                onClick={() => canSubmit && !queueFull && onSubmit(text.trim())}
+              >
+                {t('aiAskQueue')}
+              </button>
+            )}
           </>
         ) : (
           <>

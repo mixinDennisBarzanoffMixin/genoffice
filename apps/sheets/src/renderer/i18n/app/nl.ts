@@ -649,7 +649,7 @@ export const nl = {
   appRecalcDone:
     'Formules opnieuw berekend op basis van uw bewerkingen ({count} cellen, terugvalengine).',
   appIndexing: '{name} wordt geïndexeerd: {rows} rijen gereed.',
-  appStreamingRows: '{name} wordt streamend geladen: {rows} rijen beschikbaar.',
+
   appLoadRangeFailed: 'Kan het zichtbare bereik niet laden.',
   appFullyLoaded:
     'Werkmap volledig geladen — formules worden live opnieuw berekend, rijen/kolommen bewerkbaar.',

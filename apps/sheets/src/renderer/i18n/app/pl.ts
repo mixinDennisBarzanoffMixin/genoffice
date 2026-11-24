@@ -640,7 +640,7 @@ export const pl = {
   appRecalcDone:
     'Formuły przeliczono na podstawie Twoich zmian ({count} komórek, silnik zastępczy).',
   appIndexing: 'Indeksowanie {name}: {rows} wierszy gotowych.',
-  appStreamingRows: 'Ładowanie strumieniowe {name}: dostępnych {rows} wierszy.',
+
   appLoadRangeFailed: 'Nie można załadować widocznego zakresu.',
   appFullyLoaded:
     'Skoroszyt w pełni załadowany — formuły przeliczają się na żywo, wiersze/kolumny można edytować.',

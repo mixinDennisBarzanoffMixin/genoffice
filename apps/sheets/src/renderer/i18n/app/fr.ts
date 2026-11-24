@@ -674,7 +674,7 @@ export const fr = {
   appRecalcDone:
     'Formules recalculées selon vos modifications ({count} cellules, moteur de secours).',
   appIndexing: 'Indexation de {name} : {rows} lignes prêtes.',
-  appStreamingRows: 'Chargement en flux de {name} : {rows} lignes disponibles.',
+
   appLoadRangeFailed: 'Impossible de charger la zone visible.',
   appFullyLoaded:
     'Classeur entièrement chargé — les formules se recalculent en direct, lignes/colonnes modifiables.',

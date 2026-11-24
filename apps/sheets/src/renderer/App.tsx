@@ -599,7 +599,7 @@ export function App({ readonly = false }: { readonly?: boolean } = {}): React.JS
   /// to fully load the workbook first.
   const [fullLoadPrompt, setFullLoadPrompt] = useState<'ask' | 'tooLarge' | null>(null)
   const fullLoadRunning = useRef(false)
-  const [message, setMessage] = useState(t('appReadyInitial'))
+  const [, setMessage] = useState(t('appReadyInitial'))
   /// Zoom of the active sheet in percent, echoed by the status-bar slider.
   const [zoomPercent, setZoomPercent] = useState(100)
   const [selectionFormat, setSelectionFormat] = useState<SelectionFormat | null>(null)
@@ -1325,7 +1325,7 @@ export function App({ readonly = false }: { readonly?: boolean } = {}): React.JS
     if (!settings) return false
     const config = settings.providers[settings.provider]
     if (!config?.model) return false
-    // Genspark's key never lands in the settings file; the main process injects
+    // AI Copilot's key never lands in the settings file; the main process injects
     // it from the gsk login state. When logged out, requests return an error
     // guiding sign-in — not intercepted here.
     return settings.provider === 'genspark' || !!config.apiKey
@@ -4430,7 +4430,6 @@ export function App({ readonly = false }: { readonly?: boolean } = {}): React.JS
           return solveGoalSeek(runtime, { setCell, toValue, byCell })
         }}
         selectionFormat={selectionFormat}
-        statusMessage={message}
         aiBusy={aiBusy}
         chat={chat}
         historicChat={historicChat}

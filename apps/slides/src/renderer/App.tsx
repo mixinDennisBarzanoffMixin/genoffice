@@ -95,7 +95,7 @@ import {
 } from '@genoffice/ui'
 import { createSlidesSkill, type DeckAccess } from './ai/slides-skill'
 import type { ChartPresetDef, IconDef, SmartArtDef } from './insert-presets'
-import { GensparkMark, IconAiBeautify, IconAiFactCheck, IconAiImage } from './components/icons'
+import { CopilotMark, IconAiBeautify, IconAiFactCheck, IconAiImage } from './components/icons'
 import { ToastHost } from './components/toast'
 import { showToast } from './components/toast-bus'
 import { t, useI18n } from './i18n/locale'
@@ -2984,6 +2984,10 @@ export function App() {
         autoSave={autoSave}
         onAutoSaveChange={setAutoSave}
         onSave={() => void save()}
+        onOpen={() => void openDialog()}
+        onExportPdf={exportPdf}
+        onExportImages={() => void exportImages()}
+        onPrint={() => setPrintDlgOpen(true)}
         onUndo={() => void undo()}
         onRedo={() => void redo()}
         onSaveAs={() => void saveAs()}
@@ -3345,7 +3349,7 @@ export function App() {
                 data-tip={t('appAiRailExpand')}
                 aria-label={t('appAiRailExpand')}
               >
-                <GensparkMark size={22} />
+                <CopilotMark size={22} />
               </button>
             )}
           </div>
@@ -3686,8 +3690,8 @@ export function App() {
                                   data-tip={t('aiOpenAssistant')}
                                   onClick={toggleAi}
                                 >
-                                  <GensparkMark size={14} />
-                                  <span>Genspark AI</span>
+                                  <CopilotMark size={14} />
+                                  <span>AI Copilot</span>
                                 </button>
                               )}
                               {/* Same one-click presets as the Home tab; hidden instead of

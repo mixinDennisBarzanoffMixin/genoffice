@@ -50,7 +50,6 @@ export {
   type RibbonCollapse,
   type RibbonCollapseLabels,
 } from './ribbon-collapse'
-export { useRibbonFold, RibbonFoldTrigger, RibbonFoldPanel, type RibbonFold } from './ribbon-fold'
 export { AiTypingIndicator } from './AiTypingIndicator'
 export {
   hostAi,

@@ -20,7 +20,7 @@ import {
   BorderThickOuterIcon,
   BorderTopIcon,
   CaretIcon,
-  GensparkMark,
+  CopilotMark,
   RIBBON_GLYPH_ICONS,
   RedoIcon,
   SaveAsIcon,
@@ -210,8 +210,6 @@ interface ExcelShellProps {
   /// True while Univer's in-cell editor is open (Backspace must delete
   /// characters, not clear the selection).
   readonly onIsCellEditing: () => boolean
-  /// Left side of the status bar (ready / streaming / AI progress messages).
-  readonly statusMessage: string
   /// Zoom of the active sheet in percent, echoed by the status-bar slider.
   readonly zoomPercent: number
   /// True when the edit journal has unsaved changes (enables the QAT Save).
@@ -368,7 +366,6 @@ export function ExcelShell({
   onAiCitation,
   onCommand,
   onIsCellEditing,
-  statusMessage,
   zoomPercent,
   canSave,
   onSave,
@@ -652,9 +649,6 @@ export function ExcelShell({
             </button>
           ))}
           <span className="ribbon-tabs-spacer" />
-          <span className="workbook-status" role="status" aria-live="polite">
-            {statusMessage}
-          </span>
         </nav>
 
         <Ribbon
@@ -766,9 +760,6 @@ export function ExcelShell({
 
           {/* Status bar spans the sheet column only — the AI dock keeps the full window height (unified with docs/slides). */}
           <footer className="status-bar">
-            <div className="status-left">
-              <span className="status-msg">{statusMessage}</span>
-            </div>
             <div className="status-right">
               <button
                 className="zoom-btn"
@@ -2547,10 +2538,10 @@ function Ribbon({
           onClick={onAiToggle}
         >
           <span className="tool-icon-row">
-            <GensparkMark size={26} />
+            <CopilotMark size={26} />
           </span>
           <span>
-            <strong>Genspark AI</strong>
+            <strong>AI Copilot</strong>
           </span>
         </button>
         <button

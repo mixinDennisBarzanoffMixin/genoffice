@@ -536,7 +536,7 @@ export const zhTW = {
   appRecalcPartial: '公式已依你的編輯重新計算——{count} 個保留了快取值（後備引擎不支援的函數）。',
   appRecalcDone: '公式已依你的編輯重新計算（{count} 個儲存格，引擎後備）。',
   appIndexing: '正在索引 {name}：{rows} 列就緒。',
-  appStreamingRows: '正在串流載入 {name}：{rows} 列可用。',
+
   appLoadRangeFailed: '無法載入可見範圍。',
   appFullyLoaded: '活頁簿已完整載入——公式即時重新計算，列欄可編輯。',
   appRangeMustBeVector: '{range} 必須是單列或單欄的儲存格。',

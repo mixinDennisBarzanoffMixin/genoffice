@@ -547,7 +547,7 @@ export const zh = {
   appRecalcPartial: '公式已按你的编辑重算——{count} 个保留了缓存值（回退引擎不支持的函数）。',
   appRecalcDone: '公式已按你的编辑重算（{count} 个单元格，引擎回退）。',
   appIndexing: '正在索引 {name}：{rows} 行就绪。',
-  appStreamingRows: '正在流式加载 {name}：{rows} 行可用。',
+
   appLoadRangeFailed: '无法加载可见区域。',
   appFullyLoaded: '工作簿已完整加载——公式实时重算，行列可编辑。',
   appRangeMustBeVector: '{range} 必须是单行或单列的单元格。',
