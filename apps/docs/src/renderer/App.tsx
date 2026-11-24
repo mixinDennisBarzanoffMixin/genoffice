@@ -5524,7 +5524,7 @@ export function App() {
     onSave: () => void save(false),
     onSaveAs: () => void save(true),
     onToggleAi: () => {
-      if (hostAi()) return askSendNow('Help me edit this document.')
+      if (hostAi()) return askSendNow('')
       setShowAi((v) => !v)
     },
     onSection: (next: SectionSettings) => {

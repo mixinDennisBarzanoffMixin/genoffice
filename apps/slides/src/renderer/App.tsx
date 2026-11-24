@@ -1219,7 +1219,7 @@ export function App() {
 
   const toggleAi = useCallback(() => {
     const host = hostAi()
-    if (host) return host('Help me edit this presentation.', {
+    if (host) return host('', {
       kind: 'slide', slide: current + 1, selection: [...selectedIds],
     })
     setShowAi((v) => {

@@ -695,7 +695,7 @@ export function ExcelShell({
             else if (command === 'header-footer-open') setShowHeaderFooter(true)
             else if (command === 'allow-edit-ranges-open') setShowAllowEditRanges(true)
             else if (command === 'ai-open-panel' || command === 'ai-toggle-panel') {
-              if (hostAi()) onSend('Help me edit this workbook.')
+              if (hostAi()) onSend('')
               else setIsCopilotOpen((v) => !v)
             }
             else if (command === 'chart-element-title') setChartTextTarget('title')
@@ -710,7 +710,7 @@ export function ExcelShell({
           }}
           aiOpen={isCopilotOpen}
           onAiToggle={() => {
-            if (hostAi()) return onSend('Help me edit this workbook.')
+            if (hostAi()) return onSend('')
             setIsCopilotOpen((open) => !open)
           }}
         />
@@ -721,7 +721,7 @@ export function ExcelShell({
       </header>}
 
       {/* AI panel docks on the left, full height under the ribbon (unified with docs) */}
-      <div className="sheet-body">
+      <div className="sheet-body" style={hostAi() ? { gridTemplateColumns: 'minmax(0, 1fr)', transition: 'none' } : undefined}>
         {!readonly && !hostAi() && <AiChatPanel
           isOpen={isCopilotOpen}
           hasContent={sheetHasContent}
