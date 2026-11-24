@@ -1219,12 +1219,14 @@ export function App() {
 
   const toggleAi = useCallback(() => {
     const host = hostAi()
-    if (host) return host('Help me edit this presentation.')
+    if (host) return host('Help me edit this presentation.', {
+      kind: 'slide', slide: current + 1, selection: [...selectedIds],
+    })
     setShowAi((v) => {
       localStorage.setItem('ai-slides-show-ai', v ? '0' : '1')
       return !v
     })
-  }, [])
+  }, [current, selectedIds])
 
   const pushAiPreset = useCallback(
     (
@@ -1235,10 +1237,10 @@ export function App() {
       slideShot?: boolean,
       scope?: AiScopeQuoteData,
     ) => {
-      // embedded: the host's assistant takes the prompt; attachments, the
-      // slide shot and the scope quote are panel-only and dropped
       const host = hostAi()
-      if (host) return host(text)
+      if (host) return host(text, {
+        kind: 'slide', slide: current + 1, selection: [...selectedIds],
+      })
       setShowAi(() => {
         localStorage.setItem('ai-slides-show-ai', '1')
         return true
@@ -1253,7 +1255,7 @@ export function App() {
         ...(scope ? { scope } : {}),
       })
     },
-    [],
+    [current, selectedIds],
   )
 
   // ── AI element edit queue ──────────────────────────────────────────────

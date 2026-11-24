@@ -16,7 +16,7 @@ import type { Editor } from '@tiptap/core'
 import { handleDocsControl, type ControlRequest } from './control'
 import { DOMParser as PmDOMParser, type Mark as PmMark, Slice as PmSlice } from '@tiptap/pm/model'
 import { NodeSelection, type Transaction } from '@tiptap/pm/state'
-import { Dropdown, ImageViewer, useAutoSavePref } from '@genoffice/ui'
+import { Dropdown, ImageViewer, hostAi, useAutoSavePref } from '@genoffice/ui'
 import { wordRangeAtCaret } from './editor/comments'
 import { markdownPasteHtml } from './editor/markdown-paste'
 import { pasteTextSlice, singleCellPasteText } from './editor/paste-text'
@@ -4430,6 +4430,11 @@ export function App() {
   // Review > Editor, the Tools menu and Word's F7 all run the same AI proofread
   // behind the one-time whole-document-rewrite acknowledgement
   const runAiProofread = useCallback(() => {
+    const host = hostAi()
+    if (host) return host(t('ribbonEditorPrompt'), {
+      kind: 'word', page: pageInfo.current,
+      selection: { from: editor.state.selection.from, to: editor.state.selection.to },
+    })
     if (
       localStorage.getItem(AI_REWRITE_ACK_KEY) !== '1' &&
       !window.confirm(t('ribbonAiRewriteConfirm'))
@@ -4438,7 +4443,7 @@ export function App() {
     localStorage.setItem(AI_REWRITE_ACK_KEY, '1')
     setShowAi(true)
     setAiPreset({ text: t('ribbonEditorPrompt'), nonce: Date.now(), autoRun: true })
-  }, [])
+  }, [editor, pageInfo.current])
 
   // "has unsaved changes" check shared by the close guard and autosave; refreshed on every
   // render (all edit paths forceRender), so the guard's query reads the latest value
@@ -5084,6 +5089,11 @@ export function App() {
     editor.view.focus()
   }
   const askSendNow = (text: string): void => {
+    const host = hostAi()
+    if (host) return host(text, {
+      kind: 'word', page: pageInfo.current,
+      selection: { from: editor.state.selection.from, to: editor.state.selection.to },
+    })
     setShowAi(true)
     setAiPreset({ text, nonce: Date.now(), autoRun: true })
   }
@@ -5513,7 +5523,10 @@ export function App() {
     onOpen: () => void openFile(),
     onSave: () => void save(false),
     onSaveAs: () => void save(true),
-    onToggleAi: () => setShowAi((v) => !v),
+    onToggleAi: () => {
+      if (hostAi()) return askSendNow('Help me edit this document.')
+      setShowAi((v) => !v)
+    },
     onSection: (next: SectionSettings) => {
       // layout applies to the cursor's section; the final section's sectPr goes through SaveOptions.section (also drives canvas geometry)
       setSections((prev) =>
@@ -5565,6 +5578,7 @@ export function App() {
     onZoomFit: zoomFit,
     onDarkPage: setDarkPage,
     onAiPreset: (text: string) => {
+      if (hostAi()) return askSendNow(text)
       // Word's Editor / Translate start working as soon as they're clicked
       setShowAi(true)
       setAiPreset({ text, nonce: Date.now(), autoRun: true })
@@ -5840,7 +5854,7 @@ export function App() {
       />
 
       <div className="app-main">
-        {doc && (
+        {doc && !hostAi() && (
           <div className={`ai-dock${showAi ? '' : ' collapsed'}`}>
             {/* always mounted: collapse must not drop state or in-flight runs */}
             <AiPanel

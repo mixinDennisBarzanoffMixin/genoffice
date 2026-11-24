@@ -5,7 +5,7 @@ import { expect, it, vi } from 'vitest'
 import { AiComposer } from '../src/AiComposer'
 import { setHostAi } from '../src/host-ai'
 
-it('hands a panel prompt to its host without calling the standalone provider', () => {
+it('leaves submission to the editor that owns the current context', () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   const host = vi.fn()
   const submit = vi.fn()
@@ -30,9 +30,9 @@ it('hands a panel prompt to its host without calling the standalone provider', (
     ),
   )
   act(() => node.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.click())
-  expect(host).toHaveBeenCalledWith('Summarize this sheet')
-  expect(submit).not.toHaveBeenCalled()
-  expect(change).toHaveBeenCalledWith('')
+  expect(host).not.toHaveBeenCalled()
+  expect(submit).toHaveBeenCalledOnce()
+  expect(change).not.toHaveBeenCalled()
   act(() => root.unmount())
   setHostAi(null)
   vi.unstubAllGlobals()

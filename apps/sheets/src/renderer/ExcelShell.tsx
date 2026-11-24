@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { platformShortcuts } from '@genoffice/i18n'
 import {
   Dropdown,
+  hostAi,
   RibbonCollapseButton,
   SHAPE_GALLERY_GROUPS,
   ShapePreview,
@@ -693,19 +694,25 @@ export function ExcelShell({
             else if (command === 'goto-open') setShowGoTo(true)
             else if (command === 'header-footer-open') setShowHeaderFooter(true)
             else if (command === 'allow-edit-ranges-open') setShowAllowEditRanges(true)
-            else if (command === 'ai-open-panel') setIsCopilotOpen(true)
-            else if (command === 'ai-toggle-panel') setIsCopilotOpen((v) => !v)
+            else if (command === 'ai-open-panel' || command === 'ai-toggle-panel') {
+              if (hostAi()) onSend('Help me edit this workbook.')
+              else setIsCopilotOpen((v) => !v)
+            }
             else if (command === 'chart-element-title') setChartTextTarget('title')
             else if (command === 'chart-element-axis-cat') setChartTextTarget('axis-category')
             else if (command === 'chart-element-axis-val') setChartTextTarget('axis-value')
             else onCommand(command)
           }}
           onAiRun={(nextPrompt) => {
+            if (hostAi()) return onSend(nextPrompt)
             setIsCopilotOpen(true)
             onSend(nextPrompt)
           }}
           aiOpen={isCopilotOpen}
-          onAiToggle={() => setIsCopilotOpen((open) => !open)}
+          onAiToggle={() => {
+            if (hostAi()) return onSend('Help me edit this workbook.')
+            setIsCopilotOpen((open) => !open)
+          }}
         />
         <RibbonCollapseButton
           state={collapse}
@@ -715,7 +722,7 @@ export function ExcelShell({
 
       {/* AI panel docks on the left, full height under the ribbon (unified with docs) */}
       <div className="sheet-body">
-        {!readonly && <AiChatPanel
+        {!readonly && !hostAi() && <AiChatPanel
           isOpen={isCopilotOpen}
           hasContent={sheetHasContent}
           chat={chat}

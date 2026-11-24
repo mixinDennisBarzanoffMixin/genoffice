@@ -8,7 +8,11 @@
 import { useEffect, useRef } from 'react'
 
 /** Set by an embedding host before the app renders; null in the standalone desktop app. */
-export type HostAi = (prompt: string) => void
+export type HostContext =
+  | { kind: 'cell'; sheet: string; range: string }
+  | { kind: 'word'; page: number; selection: { from: number; to: number } }
+  | { kind: 'slide'; slide: number; selection: string[] }
+export type HostAi = (prompt: string, context: HostContext) => void
 
 let current: HostAi | null = null
 

@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react'
 import { IconEnter, IconSend, IconStop } from './icons'
-import { hostAi } from './host-ai'
 import { useAiPanelPrefs } from './ai-panel-prefs-store'
 
 // Keep in sync with the CSS `max-height` on `.ai-input-box textarea` (7 lines à 24px)
@@ -69,12 +68,7 @@ export function AiComposer({
   const ref = textareaRef ?? innerRef
   const canSend = value.trim().length > 0 && !busy
   const { spellcheck } = useAiPanelPrefs()
-  const onSend = () => {
-    const host = hostAi()
-    if (!host) return submit()
-    host(value.trim())
-    onChange('')
-  }
+  const onSend = submit
 
   // auto-grow up to ~6 lines; empty clears the inline height outright so the
   // CSS min-height governs (a hidden-at-measure pass can leave a stale value).

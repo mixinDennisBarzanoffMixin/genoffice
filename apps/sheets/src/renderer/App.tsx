@@ -59,7 +59,7 @@ import {
 import { isNumericIdentifierText } from './cell-warning'
 import { consumePendingUndoCarry, undoStackDepth } from './undo-carry'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { useAutoSavePref, useHostAgent, type AiScopeQuoteData } from '@genoffice/ui'
+import { hostAi, useAutoSavePref, useHostAgent, type AiScopeQuoteData } from '@genoffice/ui'
 
 import {
   CellValueType,
@@ -2926,6 +2926,16 @@ export function App({ readonly = false }: { readonly?: boolean } = {}): React.JS
     overrideAttachments?: readonly AttachmentMeta[],
     retryIndex?: number,
   ): void {
+    const host = hostAi()
+    if (host) {
+      const book = univerRef.current?.univerAPI.getActiveWorkbook()
+      const sheet = book?.getActiveSheet()
+      const range = book?.getActiveRange()?.getRange()
+      if (!sheet || !range) throw new Error('Workbook selection is unavailable')
+      return host(overrideInstruction === undefined ? prompt : overrideInstruction, {
+        kind: 'cell', sheet: sheet.getSheetName(), range: boundsToA1(range),
+      })
+    }
     const instruction = (overrideInstruction ?? prompt).trim()
     if (!instruction || aiBusy) return
     runToolsRef.current = []

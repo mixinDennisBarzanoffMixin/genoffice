@@ -58,6 +58,7 @@ export {
   whenHostAgent,
   useHostAgent,
   type HostAi,
+  type HostContext,
   type HostAgent,
   type HostTool,
   type HostToolResult,
