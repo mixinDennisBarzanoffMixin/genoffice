@@ -1218,6 +1218,8 @@ export function App() {
   }, [slides.length])
 
   const toggleAi = useCallback(() => {
+    const host = hostAi()
+    if (host) return host('Help me edit this presentation.')
     setShowAi((v) => {
       localStorage.setItem('ai-slides-show-ai', v ? '0' : '1')
       return !v
